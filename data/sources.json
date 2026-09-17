@@ -1,0 +1,76 @@
+{
+  "sources": [
+    {
+      "id": "NOAA_CPC",
+      "name": "NOAA Climate Prediction Center",
+      "role": "Climate-regime context",
+      "signals": ["ENSO", "Niño-3.4"],
+      "use": "Background climate signal",
+      "direct_htsi_input": false
+    },
+    {
+      "id": "NOAA_NWS",
+      "name": "NOAA / National Weather Service",
+      "role": "Heat Index methodology",
+      "signals": ["Temperature", "Relative Humidity", "Heat Index"],
+      "use": "Thermal-index calculation",
+      "direct_htsi_input": true
+    },
+    {
+      "id": "IMD",
+      "name": "India Meteorological Department",
+      "role": "Indian meteorological observations and heatwave information",
+      "signals": ["Temperature", "Humidity", "Wind", "Heatwave information"],
+      "use": "Local Indian weather and validation",
+      "direct_htsi_input": true
+    },
+    {
+      "id": "NCMRWF",
+      "name": "National Centre for Medium Range Weather Forecasting",
+      "role": "Forecast guidance",
+      "signals": ["Temperature forecast", "Humidity forecast", "Wind forecast"],
+      "use": "Future thermal conditions and forecast uncertainty",
+      "direct_htsi_input": true
+    },
+    {
+      "id": "ECMWF_COPERNICUS",
+      "name": "ECMWF / Copernicus",
+      "role": "Forecast and historical climate data",
+      "signals": ["Ensemble forecasts", "ERA5", "UTCI-supporting data"],
+      "use": "Forecast uncertainty, historical analysis and thermal assessment",
+      "direct_htsi_input": true
+    },
+    {
+      "id": "ISRO_NRSC",
+      "name": "ISRO / NRSC",
+      "role": "Satellite environmental evidence",
+      "signals": ["Satellite-derived environmental indicators"],
+      "use": "Climate-regime and spatial environmental evidence",
+      "direct_htsi_input": false
+    },
+    {
+      "id": "INCOIS",
+      "name": "Indian National Centre for Ocean Information Services",
+      "role": "Ocean and climate indicators",
+      "signals": ["SST", "IOD", "Ocean indicators"],
+      "use": "Climate-regime context",
+      "direct_htsi_input": false
+    },
+    {
+      "id": "NASA",
+      "name": "NASA",
+      "role": "Earth and environmental observations",
+      "signals": ["Radiation", "Land/environmental observations"],
+      "use": "Environmental input support",
+      "direct_htsi_input": true
+    }
+  ],
+  "provenance_required": [
+    "source",
+    "variable",
+    "timestamp",
+    "units",
+    "location",
+    "quality"
+  ]
+}
