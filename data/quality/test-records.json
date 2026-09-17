@@ -1,0 +1,150 @@
+{
+  "test_suite": "Thermal Shield 360 QC",
+  "version": "1.0",
+  "description": "Controlled test records for validating the Thermal Shield 360 data-quality engine. These are synthetic test cases and are not research observations.",
+
+  "tests": [
+
+    {
+      "id": "TEST-A",
+      "name": "Valid Normal Weather",
+      "expected_result": "good",
+
+      "record": {
+        "location": {
+          "name": "Pune Test Location",
+          "latitude": 18.52,
+          "longitude": 73.86
+        },
+
+        "time": {
+          "timestamp": "2026-09-17T10:00:00+05:30",
+          "timezone": "Asia/Kolkata",
+          "forecast_lead_hours": 0
+        },
+
+        "environment": {
+          "air_temperature_c": 30.5,
+          "relative_humidity_pct": 55,
+          "wind_speed_ms": 2.5,
+          "wind_direction_deg": 180,
+          "dew_point_c": 20.5,
+          "pressure_hpa": 1008,
+          "solar_radiation_wm2": 650,
+          "surface_temperature_c": null,
+          "rainfall_mm": 0
+        },
+
+        "provenance": {
+          "source_id": "test",
+          "source_name": "Synthetic QC Test",
+          "data_type": "observation",
+          "variable": "thermal_environment",
+          "units": "SI/standardized",
+          "retrieved_at": "2026-09-17T10:01:00+05:30"
+        },
+
+        "quality": {
+          "quality_flag": "good",
+          "missing_fields": [],
+          "notes": "Synthetic valid test record."
+        }
+      }
+    },
+
+    {
+      "id": "TEST-B",
+      "name": "Invalid Relative Humidity",
+      "expected_result": "poor",
+
+      "record": {
+        "location": {
+          "name": "Pune Test Location",
+          "latitude": 18.52,
+          "longitude": 73.86
+        },
+
+        "time": {
+          "timestamp": "2026-09-17T11:00:00+05:30",
+          "timezone": "Asia/Kolkata",
+          "forecast_lead_hours": 0
+        },
+
+        "environment": {
+          "air_temperature_c": 34.0,
+          "relative_humidity_pct": 125,
+          "wind_speed_ms": 2.0,
+          "wind_direction_deg": 180,
+          "dew_point_c": 25.0,
+          "pressure_hpa": 1006,
+          "solar_radiation_wm2": 700,
+          "surface_temperature_c": null,
+          "rainfall_mm": 0
+        },
+
+        "provenance": {
+          "source_id": "test",
+          "source_name": "Synthetic QC Test",
+          "data_type": "observation",
+          "variable": "thermal_environment",
+          "units": "SI/standardized",
+          "retrieved_at": "2026-09-17T11:01:00+05:30"
+        },
+
+        "quality": {
+          "quality_flag": "poor",
+          "missing_fields": [],
+          "notes": "Synthetic invalid test: relative humidity intentionally exceeds 100%."
+        }
+      }
+    },
+
+    {
+      "id": "TEST-C",
+      "name": "Extreme But Valid Heat",
+      "expected_result": "good",
+
+      "record": {
+        "location": {
+          "name": "Pune Test Location",
+          "latitude": 18.52,
+          "longitude": 73.86
+        },
+
+        "time": {
+          "timestamp": "2026-09-17T14:00:00+05:30",
+          "timezone": "Asia/Kolkata",
+          "forecast_lead_hours": 0
+        },
+
+        "environment": {
+          "air_temperature_c": 45.0,
+          "relative_humidity_pct": 40,
+          "wind_speed_ms": 1.2,
+          "wind_direction_deg": 180,
+          "dew_point_c": 29.5,
+          "pressure_hpa": 1002,
+          "solar_radiation_wm2": 900,
+          "surface_temperature_c": 52.0,
+          "rainfall_mm": 0
+        },
+
+        "provenance": {
+          "source_id": "test",
+          "source_name": "Synthetic QC Test",
+          "data_type": "observation",
+          "variable": "thermal_environment",
+          "units": "SI/standardized",
+          "retrieved_at": "2026-09-17T14:01:00+05:30"
+        },
+
+        "quality": {
+          "quality_flag": "good",
+          "missing_fields": [],
+          "notes": "Synthetic extreme-heat test. Extreme conditions should not automatically be classified as invalid data."
+        }
+      }
+    }
+
+  ]
+}
