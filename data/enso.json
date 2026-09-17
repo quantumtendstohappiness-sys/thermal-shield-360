@@ -1,0 +1,9 @@
+{
+  "source": "NOAA Climate Prediction Center \u2014 ENSO Diagnostic Discussion",
+  "date": "2026-09-10",
+  "status": "El Ni\u00f1o Advisory",
+  "nino34_anomaly_c": 1.8,
+  "very_strong_event_probability_text": ">90%",
+  "use": "context_only",
+  "note": "This is a climate-regime/background signal. It is not a deterministic local 3\u20135 day heatwave trigger."
+}
