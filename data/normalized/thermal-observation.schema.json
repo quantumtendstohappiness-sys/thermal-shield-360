@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Thermal Shield 360 Thermal Observation",
+  "description": "Standardized environmental observation or forecast record used by the Thermal Shield 360 thermal intelligence pipeline.",
+  "type": "object",
+
+  "required": [
+    "location",
+    "time",
+    "environment",
+    "provenance",
+    "quality"
+  ],
+
+  "properties": {
+
+    "location": {
+      "type": "object",
+      "required": [
+        "name",
+        "latitude",
+        "longitude"
+      ],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "latitude": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "longitude": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        }
+      }
+    },
+
+    "time": {
+      "type": "object",
+      "required": [
+        "timestamp",
+        "timezone"
+      ],
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "timezone": {
+          "type": "string"
+        },
+        "forecast_lead_hours": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+
+    "environment": {
+      "type": "object",
+
+      "properties": {
+
+        "air_temperature_c": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+
+        "relative_humidity_pct": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        },
+
+        "wind_speed_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+
+        "wind_direction_deg": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 360
+        },
+
+        "dew_point_c": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+
+        "pressure_hpa": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+
+        "solar_radiation_wm2": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+
+        "surface_temperature_c": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+
+        "rainfall_mm": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+
+    "provenance": {
+      "type": "object",
+
+      "required": [
+        "source_id",
+        "source_name",
+        "data_type",
+        "retrieved_at"
+      ],
+
+      "properties": {
+
+        "source_id": {
+          "type": "string"
+        },
+
+        "source_name": {
+          "type": "string"
+        },
+
+        "data_type": {
+          "type": "string",
+          "enum": [
+            "observation",
+            "forecast",
+            "reanalysis",
+            "satellite",
+            "derived",
+            "climate"
+          ]
+        },
+
+        "variable": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+
+        "units": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+
+        "retrieved_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+
+    "quality": {
+      "type": "object",
+
+      "required": [
+        "quality_flag",
+        "missing_fields"
+      ],
+
+      "properties": {
+
+        "quality_flag": {
+          "type": "string",
+          "enum": [
+            "good",
+            "acceptable",
+            "poor",
+            "missing"
+          ]
+        },
+
+        "missing_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}
