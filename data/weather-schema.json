@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.0",
+  "description": "Standardized environmental observation/forecast record for Thermal Shield 360",
+
+  "location": {
+    "latitude": "number",
+    "longitude": "number",
+    "name": "string"
+  },
+
+  "time": {
+    "timestamp": "ISO-8601 datetime",
+    "timezone": "string",
+    "forecast_lead_hours": "number"
+  },
+
+  "environment": {
+    "air_temperature_c": "number",
+    "relative_humidity_pct": "number",
+    "wind_speed_ms": "number",
+    "solar_radiation_wm2": "number"
+  },
+
+  "provenance": {
+    "source_id": "string",
+    "source_name": "string",
+    "data_type": "observation|forecast|reanalysis|satellite|derived",
+    "variable": "string",
+    "units": "string",
+    "retrieved_at": "ISO-8601 datetime"
+  },
+
+  "quality": {
+    "quality_flag": "good|acceptable|poor|missing",
+    "missing_fields": [],
+    "notes": "string"
+  }
+}
