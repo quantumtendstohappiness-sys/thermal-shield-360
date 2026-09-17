@@ -1,0 +1,151 @@
+{
+  "version": "1.0",
+  "project": "Thermal Shield 360",
+  "description": "Research-data source registry for the Thermal Shield 360 climate intelligence and human thermal stress platform.",
+
+  "sources": [
+    {
+      "id": "imd",
+      "name": "India Meteorological Department",
+      "status": "pending_authorization",
+      "role": "weather_observations_forecasts_warnings",
+      "data_types": [
+        "observation",
+        "forecast",
+        "warning"
+      ],
+      "expected_variables": [
+        "air_temperature_c",
+        "relative_humidity_pct",
+        "wind_speed_ms",
+        "dew_point_c",
+        "pressure_hpa",
+        "rainfall_mm"
+      ],
+      "direct_htsi_input": true,
+      "context_only": false,
+      "authentication": "official_api_access",
+      "integration_status": "adapter_pending"
+    },
+
+    {
+      "id": "ecmwf",
+      "name": "ECMWF",
+      "status": "open_data_or_configured_access",
+      "role": "weather_forecast_and_ensemble_data",
+      "data_types": [
+        "forecast",
+        "ensemble"
+      ],
+      "expected_variables": [
+        "air_temperature_c",
+        "relative_humidity_pct",
+        "wind_speed_ms",
+        "radiation_related_variables"
+      ],
+      "direct_htsi_input": true,
+      "context_only": false,
+      "authentication": "dataset_specific",
+      "integration_status": "adapter_pending"
+    },
+
+    {
+      "id": "isro",
+      "name": "ISRO MOSDAC / NRSC",
+      "status": "registration_or_approval_dependent",
+      "role": "satellite_environmental_observation",
+      "data_types": [
+        "satellite",
+        "derived"
+      ],
+      "expected_variables": [
+        "land_surface_temperature_c",
+        "satellite_environmental_indicators"
+      ],
+      "direct_htsi_input": false,
+      "context_only": true,
+      "authentication": "registered_or_authorized_access",
+      "integration_status": "adapter_pending"
+    },
+
+    {
+      "id": "noaa",
+      "name": "NOAA",
+      "status": "public_data_available",
+      "role": "climate_and_enso_context",
+      "data_types": [
+        "climate",
+        "observation",
+        "analysis"
+      ],
+      "expected_variables": [
+        "nino34_anomaly_c",
+        "enso_probability",
+        "climate_indicators"
+      ],
+      "direct_htsi_input": false,
+      "context_only": true,
+      "authentication": "public",
+      "integration_status": "partial"
+    },
+
+    {
+      "id": "incois",
+      "name": "INCOIS",
+      "status": "public_data_or_dataset_specific_access",
+      "role": "ocean_and_climate_context",
+      "data_types": [
+        "observation",
+        "climate",
+        "derived"
+      ],
+      "expected_variables": [
+        "sea_surface_temperature_c",
+        "sst_anomaly_c",
+        "ocean_climate_indicators"
+      ],
+      "direct_htsi_input": false,
+      "context_only": true,
+      "authentication": "public_or_dataset_specific",
+      "integration_status": "adapter_pending"
+    },
+
+    {
+      "id": "nasa",
+      "name": "NASA",
+      "status": "public_or_dataset_specific",
+      "role": "radiation_and_environmental_data",
+      "data_types": [
+        "observation",
+        "reanalysis",
+        "derived"
+      ],
+      "expected_variables": [
+        "solar_radiation_wm2",
+        "environmental_indicators"
+      ],
+      "direct_htsi_input": true,
+      "context_only": false,
+      "authentication": "dataset_specific",
+      "integration_status": "adapter_pending"
+    }
+  ],
+
+  "provenance_required": [
+    "source_id",
+    "source_name",
+    "variable",
+    "units",
+    "timestamp",
+    "location",
+    "data_type",
+    "retrieved_at",
+    "quality_flag"
+  ],
+
+  "architecture_rule": "Research institutions are not weighted against each other. Their physical variables are normalized and passed to the appropriate thermal or climate module.",
+
+  "htsi_rule": "Direct environmental exposure variables contribute to thermal indices and HTSI. Climate-regime and ocean-context sources such as ENSO, SST and satellite context are not directly multiplied into daily HTSI unless a validated research method explicitly supports it.",
+
+  "security_rule": "API keys, passwords, access tokens and private credentials must never be committed to this public repository."
+}
