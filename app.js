@@ -33,58 +33,170 @@ function wbgtProxy(T, RH, wind, rad) {
 
 async function loadWeather() {
   $("status").textContent =
-    "Loading synchronized NASA POWER observation…";
+    "Loading NASA POWER data for your selected location…";
 
   try {
-    const r = await fetch(
-      "data/live/nasa-power-current.json",
-      { cache: "no-store" }
-    );
-
-    if (!r.ok) {
-      throw new Error(`HTTP ${r.status}`);
-    }
-
-    const d = await r.json();
-
-    const coordinates = d.geometry?.coordinates;
-    const p = d.properties;
-    const e = p?.environment;
+    const latitude = Number($("lat").value);
+    const longitude = Number($("lon").value);
 
     if (
-      !Array.isArray(coordinates) ||
-      !p ||
-      !e ||
-      !Number.isFinite(e.air_temperature_c) ||
-      !Number.isFinite(e.relative_humidity_pct) ||
-      !Number.isFinite(e.wind_speed_ms)
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude)
     ) {
       throw new Error(
-        "NASA POWER observation is incomplete or invalid."
+        "Please select your location first."
       );
     }
 
-    const lon = coordinates[0];
-    const lat = coordinates[1];
+    function formatUTCDate(date) {
+      return [
+        date.getUTCFullYear(),
+        String(date.getUTCMonth() + 1).padStart(2, "0"),
+        String(date.getUTCDate()).padStart(2, "0")
+      ].join("");
+    }
 
-    $("lat").value = lat;
-    $("lon").value = lon;
+    const endDate = new Date();
+    const startDate = new Date(
+      endDate.getTime() - 2 * 24 * 60 * 60 * 1000
+    );
 
-    $("temp").value = e.air_temperature_c;
-    $("rh").value = e.relative_humidity_pct;
-    $("wind").value = e.wind_speed_ms;
+    const start = formatUTCDate(startDate);
+    const end = formatUTCDate(endDate);
 
-    if (Number.isFinite(e.solar_radiation_wm2)) {
-      $("rad").value = e.solar_radiation_wm2;
+    const nasaUrl =
+      "https://power.larc.nasa.gov/api/temporal/hourly/point" +
+      "?parameters=T2M,RH2M,WS10M,T2MWET,T2MDEW,ALLSKY_SFC_SW_DWN" +
+      "&community=SB" +
+      `&longitude=${encodeURIComponent(longitude)}` +
+      `&latitude=${encodeURIComponent(latitude)}` +
+      `&start=${start}` +
+      `&end=${end}` +
+      "&format=JSON" +
+      "&time-standard=UTC";
+
+    const response = await fetch(nasaUrl);
+
+    if (!response.ok) {
+      throw new Error(
+        `NASA POWER HTTP ${response.status}`
+      );
+    }
+
+    const data = await response.json();
+
+    const parameterData =
+      data.properties?.parameter;
+
+    if (
+      !parameterData ||
+      !parameterData.T2M ||
+      !parameterData.RH2M ||
+      !parameterData.WS10M
+    ) {
+      throw new Error(
+        "NASA POWER returned incomplete weather data."
+      );
+    }
+
+    const timestamps =
+      Object.keys(parameterData.T2M)
+        .sort()
+        .reverse();
+
+    const latestTimestamp =
+      timestamps.find((timestamp) =>
+        Number.isFinite(
+          parameterData.T2M[timestamp]
+        ) &&
+        Number.isFinite(
+          parameterData.RH2M?.[timestamp]
+        ) &&
+        Number.isFinite(
+          parameterData.WS10M?.[timestamp]
+        )
+      );
+
+    if (!latestTimestamp) {
+      throw new Error(
+        "No valid NASA POWER observation was found."
+      );
+    }
+
+    function cleanNASAValue(value) {
+      if (
+        value === -999 ||
+        value === -999.0 ||
+        !Number.isFinite(value)
+      ) {
+        return null;
+      }
+
+      return value;
+    }
+
+    const temperature =
+      cleanNASAValue(
+        parameterData.T2M[latestTimestamp]
+      );
+
+    const humidity =
+      cleanNASAValue(
+        parameterData.RH2M[latestTimestamp]
+      );
+
+    const wind =
+      cleanNASAValue(
+        parameterData.WS10M[latestTimestamp]
+      );
+
+    const wetBulb =
+      cleanNASAValue(
+        parameterData.T2MWET?.[latestTimestamp]
+      );
+
+    const dewPoint =
+      cleanNASAValue(
+        parameterData.T2MDEW?.[latestTimestamp]
+      );
+
+    const solarRadiation =
+      cleanNASAValue(
+        parameterData.ALLSKY_SFC_SW_DWN?.[
+          latestTimestamp
+        ]
+      );
+
+    if (
+      !Number.isFinite(temperature) ||
+      !Number.isFinite(humidity) ||
+      !Number.isFinite(wind)
+    ) {
+      throw new Error(
+        "Latest NASA POWER observation is incomplete."
+      );
+    }
+
+    $("lat").value = latitude;
+    $("lon").value = longitude;
+
+    $("temp").value = temperature;
+    $("rh").value = humidity;
+    $("wind").value = wind;
+
+    if (Number.isFinite(solarRadiation)) {
+      $("rad").value = solarRadiation;
     } else {
       $("rad").value = "";
     }
 
     $("status").textContent =
-      `Loaded NASA POWER observation ${p.observation_timestamp_utc} UTC. ` +
-      `Retrieved ${p.retrieved_at}. ` +
-      `Location: ${lat}, ${lon}. ` +
-      `Source: NASA POWER.`;
+      `Loaded NASA POWER observation ` +
+      `${latestTimestamp} UTC. ` +
+      `Location: ${latitude}, ${longitude}. ` +
+      `Source: NASA POWER. ` +
+      `Solar radiation: ` +
+      `${Number.isFinite(solarRadiation) ? "available" : "unavailable"}.`;
 
     calculate();
 
@@ -93,7 +205,6 @@ async function loadWeather() {
       `NASA POWER load failed: ${e.message}`;
   }
 }
-
   
 
 function calculate() {
