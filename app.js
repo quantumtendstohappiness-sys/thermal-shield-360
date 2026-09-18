@@ -105,17 +105,14 @@ async function loadWeather() {
         .reverse();
 
     const latestTimestamp =
-      timestamps.find((timestamp) =>
-        Number.isFinite(
-          parameterData.T2M[timestamp]
-        ) &&
-        Number.isFinite(
-          parameterData.RH2M?.[timestamp]
-        ) &&
-        Number.isFinite(
-          parameterData.WS10M?.[timestamp]
-        )
-      );
+  timestamps.find((timestamp) =>
+    parameterData.T2M[timestamp] !== -999 &&
+    parameterData.RH2M?.[timestamp] !== -999 &&
+    parameterData.WS10M?.[timestamp] !== -999 &&
+    Number.isFinite(parameterData.T2M[timestamp]) &&
+    Number.isFinite(parameterData.RH2M?.[timestamp]) &&
+    Number.isFinite(parameterData.WS10M?.[timestamp])
+  );
 
     if (!latestTimestamp) {
       throw new Error(
