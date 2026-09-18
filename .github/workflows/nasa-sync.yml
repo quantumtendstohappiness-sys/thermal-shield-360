@@ -16,25 +16,170 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Fetch latest NASA POWER data
+      - name: Fetch latest available NASA POWER data
         env:
           LATITUDE: "18.5204"
           LONGITUDE: "73.8567"
         run: |
+          set -e
+
           mkdir -p data/live
 
-          DATE=$(date -u +"%Y%m%d")
+          END_DATE=$(date -u +"%Y%m%d")
+          START_DATE=$(date -u -d "10 days ago" +"%Y%m%d")
 
-          URL="https://power.larc.nasa.gov/api/temporal/hourly/point?parameters=T2M,RH2M,WS10M,T2MWET,T2MDEW,ALLSKY_SFC_SW_DWN&community=SB&longitude=${LONGITUDE}&latitude=${LATITUDE}&start=${DATE}&end=${DATE}&format=JSON&time-standard=UTC"
+          URL="https://power.larc.nasa.gov/api/temporal/hourly/point?parameters=T2M,RH2M,WS10M,T2MWET,T2MDEW,ALLSKY_SFC_SW_DWN&community=SB&longitude=${LONGITUDE}&latitude=${LATITUDE}&start=${START_DATE}&end=${END_DATE}&format=JSON&time-standard=UTC"
 
           curl --fail --silent --show-error "$URL" \
-            -o data/live/nasa-power-current.json
+            -o /tmp/nasa-power-response.json
 
-      - name: Validate NASA response
+          node <<'NODE'
+          const fs = require("fs");
+
+          const input = JSON.parse(
+            fs.readFileSync("/tmp/nasa-power-response.json", "utf8")
+          );
+
+          const parameters = input?.properties?.parameter;
+
+          if (!parameters) {
+            throw new Error("NASA POWER response does not contain parameter data.");
+          }
+
+          const required = ["T2M", "RH2M", "WS10M"];
+
+          const timestamps = Object.keys(parameters.T2M || {})
+            .sort()
+            .reverse();
+
+          let latestTimestamp = null;
+
+          for (const timestamp of timestamps) {
+            const valid = required.every((parameter) => {
+              const value = parameters?.[parameter]?.[timestamp];
+              return Number.isFinite(value) && value !== -999;
+            });
+
+            if (valid) {
+              latestTimestamp = timestamp;
+              break;
+            }
+          }
+
+          if (!latestTimestamp) {
+            throw new Error(
+              "No valid NASA POWER meteorological observation was found in the requested window."
+            );
+          }
+
+          function clean(value) {
+            return Number.isFinite(value) && value !== -999
+              ? value
+              : null;
+          }
+
+          const output = {
+            type: "Feature",
+            geometry: input.geometry,
+            properties: {
+              source: "NASA POWER",
+              source_id: "nasa_power",
+              data_type: "reanalysis",
+              observation_timestamp_utc: latestTimestamp,
+              retrieved_at: new Date().toISOString(),
+
+              environment: {
+                air_temperature_c:
+                  clean(parameters.T2M?.[latestTimestamp]),
+
+                relative_humidity_pct:
+                  clean(parameters.RH2M?.[latestTimestamp]),
+
+                wind_speed_ms:
+                  clean(parameters.WS10M?.[latestTimestamp]),
+
+                nasa_wet_bulb_related_c:
+                  clean(parameters.T2MWET?.[latestTimestamp]),
+
+                dew_point_c:
+                  clean(parameters.T2MDEW?.[latestTimestamp]),
+
+                solar_radiation_wm2:
+                  clean(parameters.ALLSKY_SFC_SW_DWN?.[latestTimestamp])
+              },
+
+              provenance: {
+                provider:
+                  "NASA Prediction Of Worldwide Energy Resources (POWER)",
+
+                variables:
+                  "T2M,RH2M,WS10M,T2MWET,T2MDEW,ALLSKY_SFC_SW_DWN",
+
+                time_standard: "UTC",
+
+                note:
+                  "Latest available NASA POWER observation. T2MWET is retained as a NASA POWER wet-bulb-related parameter and is not treated as measured natural wet-bulb temperature."
+              },
+
+              quality: {
+                quality_flag: "acceptable",
+                missing_fields: [],
+                fill_value_removed: true
+              }
+            }
+          };
+
+          if (output.environment.solar_radiation_wm2 === null) {
+            output.quality.missing_fields.push(
+              "environment.solar_radiation_wm2"
+            );
+          }
+
+          fs.writeFileSync(
+            "data/live/nasa-power-current.json",
+            JSON.stringify(output, null, 2) + "\n"
+          );
+
+          console.log(
+            `Latest valid NASA POWER observation: ${latestTimestamp}`
+          );
+          NODE
+
+      - name: Validate synchronized NASA data
         run: |
           test -s data/live/nasa-power-current.json
-          node -e "JSON.parse(require('fs').readFileSync('data/live/nasa-power-current.json','utf8')); console.log('NASA JSON is valid.')"
 
+          node -e "
+          const d = JSON.parse(require('fs').readFileSync('data/live/nasa-power-current.json','utf8'));
+
+          if (!d.properties?.observation_timestamp_utc) {
+            throw new Error('Missing NASA observation timestamp.');
+          }
+
+          const e = d.properties.environment;
+
+          for (const key of ['air_temperature_c','relative_humidity_pct','wind_speed_ms']) {
+            if (!Number.isFinite(e[key])) {
+              throw new Error('Required NASA field is invalid: ' + key);
+            }
+          }
+
+          console.log('NASA synchronized data is valid.');
+          "
+
+      - name: Commit updated NASA data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/live/nasa-power-current.json
+
+          if git diff --cached --quiet; then
+            echo "No NASA data changes to commit."
+          else
+            git commit -m "Auto-sync latest NASA POWER observation"
+            git push
+          fi
       - name: Commit updated NASA data
         run: |
           git config user.name "github-actions[bot]"
