@@ -32,27 +32,14 @@ function wbgtProxy(T, RH, wind, rad) {
 }
 
 async function loadWeather() {
-  const lat = parseFloat($("lat").value);
-  const lon = parseFloat($("lon").value);
-
-  if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-    $("status").textContent =
-      "Enter valid latitude/longitude.";
-    return;
-  }
-
   $("status").textContent =
-    "Loading Open-Meteo forecast…";
-
-  const url =
-    `https://api.open-meteo.com/v1/forecast?` +
-    `latitude=${lat}&longitude=${lon}` +
-    `&hourly=temperature_2m,relative_humidity_2m,` +
-    `wind_speed_10m,shortwave_radiation,wet_bulb_temperature_2m` +
-    `&forecast_days=3&timezone=auto`;
+    "Loading synchronized NASA POWER observation…";
 
   try {
-    const r = await fetch(url);
+    const r = await fetch(
+      "data/live/nasa-power-current.json",
+      { cache: "no-store" }
+    );
 
     if (!r.ok) {
       throw new Error(`HTTP ${r.status}`);
@@ -60,37 +47,54 @@ async function loadWeather() {
 
     const d = await r.json();
 
-    const i = d.hourly.time.findIndex(
-      t => new Date(t) >= new Date()
-    );
+    const coordinates = d.geometry?.coordinates;
+    const p = d.properties;
+    const e = p?.environment;
 
-    const idx = i >= 0 ? i : 0;
-
-    $("temp").value =
-      d.hourly.temperature_2m[idx];
-
-    $("rh").value =
-      d.hourly.relative_humidity_2m[idx];
-
-    $("wind").value =
-      (d.hourly.wind_speed_10m[idx] / 3.6).toFixed(2);
-
-    $("rad").value =
-      Math.round(
-        d.hourly.shortwave_radiation[idx] || 0
+    if (
+      !Array.isArray(coordinates) ||
+      !p ||
+      !e ||
+      !Number.isFinite(e.air_temperature_c) ||
+      !Number.isFinite(e.relative_humidity_pct) ||
+      !Number.isFinite(e.wind_speed_ms)
+    ) {
+      throw new Error(
+        "NASA POWER observation is incomplete or invalid."
       );
+    }
+
+    const lon = coordinates[0];
+    const lat = coordinates[1];
+
+    $("lat").value = lat;
+    $("lon").value = lon;
+
+    $("temp").value = e.air_temperature_c;
+    $("rh").value = e.relative_humidity_pct;
+    $("wind").value = e.wind_speed_ms;
+
+    if (Number.isFinite(e.solar_radiation_wm2)) {
+      $("rad").value = e.solar_radiation_wm2;
+    } else {
+      $("rad").value = "";
+    }
 
     $("status").textContent =
-      `Loaded ${d.hourly.time[idx]} (${d.timezone}). ` +
-      `Source: Open-Meteo forecast.`;
+      `Loaded NASA POWER observation ${p.observation_timestamp_utc} UTC. ` +
+      `Retrieved ${p.retrieved_at}. ` +
+      `Location: ${lat}, ${lon}. ` +
+      `Source: NASA POWER.`;
 
     calculate();
 
   } catch (e) {
     $("status").textContent =
-      `Weather load failed: ${e.message}`;
+      `NASA POWER load failed: ${e.message}`;
   }
 }
+
+  
 
 function calculate() {
 
@@ -107,18 +111,16 @@ function calculate() {
   };
 
   if (
-    ![
-      args.T,
-      args.RH,
-      args.wind,
-      args.rad
-    ].every(Number.isFinite)
-  ) {
-    $("risk").textContent =
-      "Enter environmental inputs";
-    return;
-  }
-
+  ![
+    args.T,
+    args.RH,
+    args.wind
+  ].every(Number.isFinite)
+) {
+  $("risk").textContent =
+    "Temperature, humidity, or wind data unavailable";
+  return;
+}
   /*
    * Use the dedicated Heat Index engine.
    */
@@ -146,12 +148,14 @@ function calculate() {
    * This proxy is NOT passed to the HTSI engine as official WBGT.
    */
   const wbgtProxyValue =
-    wbgtProxy(
-      args.T,
-      args.RH,
-      args.wind,
-      args.rad
-    );
+  Number.isFinite(args.rad)
+    ? wbgtProxy(
+        args.T,
+        args.RH,
+        args.wind,
+        args.rad
+      )
+    : null;
 
   /*
    * Radiation + low-wind stress modifier.
@@ -159,8 +163,10 @@ function calculate() {
    * This remains a transparent prototype modifier.
    */
   const radStress =
-    clamp(args.rad / 800, 0, 1) * 0.65 +
-    (1 - clamp(args.wind / 4, 0, 1)) * 0.35;
+  Number.isFinite(args.rad)
+    ? clamp(args.rad / 800, 0, 1) * 0.65 +
+      (1 - clamp(args.wind / 4, 0, 1)) * 0.35
+    : null;
 
   /*
    * STEP 9.6:
@@ -213,7 +219,9 @@ function calculate() {
     `${hi.toFixed(1)} °C`;
 
   $("wbgt").textContent =
-    `${wbgtProxyValue.toFixed(1)} °C (proxy)`;
+  Number.isFinite(wbgtProxyValue)
+    ? `${wbgtProxyValue.toFixed(1)} °C (proxy)`
+    : "Unavailable — no valid solar-radiation observation";
 
   $("utciOut").textContent =
     Number.isFinite(args.utci)
@@ -224,7 +232,9 @@ function calculate() {
     args.persistence.toFixed(2);
 
   $("radOut").textContent =
-    radStress.toFixed(2);
+  Number.isFinite(radStress)
+    ? radStress.toFixed(2)
+    : "Unavailable";
 
   $("downOut").textContent =
     args.downside.toFixed(2);
@@ -261,10 +271,11 @@ ${htsiResult.calibration_status}
 Medical status:
 ${htsiResult.medical_status}`;
 
+  
   $("sourceLog").textContent =
-    `Weather: Open-Meteo forecast variables ` +
-    `(T2m, RH2m, wind10m, shortwave radiation).
-
+  `Weather: NASA POWER synchronized observation ` +
+  `(T2M, RH2M, WS10M, T2MWET, T2MDEW, ALLSKY_SFC_SW_DWN).`;
+  
 Heat Index: Thermal Shield 360 Heat Index engine
 using NOAA/NWS-style Rothfusz methodology.
 
