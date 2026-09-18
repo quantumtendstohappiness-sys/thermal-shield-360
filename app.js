@@ -58,7 +58,7 @@ async function loadWeather() {
 
     const endDate = new Date();
     const startDate = new Date(
-      endDate.getTime() - 2 * 24 * 60 * 60 * 1000
+      endDate.getTime() - 10 * 24 * 60 * 60 * 1000
     );
 
     const start = formatUTCDate(startDate);
