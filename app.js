@@ -342,7 +342,7 @@ function useMyLocation() {
     "⏳ Detecting your current location...";
 
   navigator.geolocation.getCurrentPosition(
-    function (position) {
+    async function (position) {
       const latitude =
         Number(position.coords.latitude.toFixed(6));
 
@@ -352,8 +352,47 @@ function useMyLocation() {
       $("lat").value = latitude;
       $("lon").value = longitude;
 
-      $("selectedLocation").textContent =
-        "📍 Your current device location";
+      try {
+  const response = await fetch(
+    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+  );
+
+  if (!response.ok) {
+    throw new Error("Reverse geocoding failed.");
+  }
+
+  const place = await response.json();
+
+  const address = place.address || {};
+
+  const locationName =
+    address.city ||
+    address.town ||
+    address.village ||
+    address.municipality ||
+    address.county ||
+    "Detected location";
+
+  const state =
+    address.state || "";
+
+  const country =
+    address.country || "";
+
+  const readableLocation =
+    [locationName, state, country]
+      .filter(Boolean)
+      .join(", ");
+
+  $("selectedLocation").textContent =
+    `📍 ${readableLocation}`;
+
+} catch (error) {
+
+  $("selectedLocation").textContent =
+    "📍 Location detected";
+
+}
 
       status.textContent =
         "✓ Location detected successfully.";
