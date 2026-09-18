@@ -532,9 +532,93 @@ function useMyLocation() {
   );
 }
 
+async function searchLocation() {
+  const query = $("locationSearch").value.trim();
+  const resultsBox = $("locationResults");
+
+  if (!query) {
+    resultsBox.textContent =
+      "Please enter a city, area or place.";
+    return;
+  }
+
+  resultsBox.textContent =
+    "⏳ Searching for locations...";
+
+  try {
+    const nominatimUrl =
+      "https://nominatim.openstreetmap.org/search" +
+      `?q=${encodeURIComponent(query)}` +
+      "&format=jsonv2" +
+      "&addressdetails=1" +
+      "&limit=5" +
+      "&countrycodes=in";
+
+    const response = await fetch(nominatimUrl);
+
+    if (!response.ok) {
+      throw new Error(
+        `Location search HTTP ${response.status}`
+      );
+    }
+
+    const results = await response.json();
+
+    if (!Array.isArray(results) || results.length === 0) {
+      resultsBox.textContent =
+        "No matching locations found.";
+      return;
+    }
+
+    resultsBox.innerHTML = "";
+
+    results.forEach((place) => {
+      const button = document.createElement("button");
+
+      button.type = "button";
+      button.textContent = place.display_name;
+
+      button.addEventListener("click", () => {
+        const latitude = Number(place.lat);
+        const longitude = Number(place.lon);
+
+        if (
+          !Number.isFinite(latitude) ||
+          !Number.isFinite(longitude)
+        ) {
+          resultsBox.textContent =
+            "Selected location has invalid coordinates.";
+          return;
+        }
+
+        $("lat").value = latitude;
+        $("lon").value = longitude;
+
+        $("selectedLocation").textContent =
+          `📍 ${place.display_name}`;
+
+        resultsBox.textContent =
+          "✓ Location selected successfully.";
+
+        $("status").textContent =
+          "Selected location. Ready to load environmental data.";
+      });
+
+      resultsBox.appendChild(button);
+    });
+
+  } catch (error) {
+    resultsBox.textContent =
+      `Location search failed: ${error.message}`;
+  }
+}
 $("locationBtn").addEventListener(
   "click",
   useMyLocation
+);
+$("searchLocationBtn").addEventListener(
+  "click",
+  searchLocation
 );
 $("loadBtn").addEventListener(
   "click",
