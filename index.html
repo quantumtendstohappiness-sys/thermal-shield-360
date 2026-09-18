@@ -17,15 +17,67 @@
 
 <main>
   <section class="card">
-    <h2>1. Location & data</h2>
-    <div class="grid">
-      <label>Latitude <input id="lat" type="number" step="0.0001" value="18.52"></label>
-      <label>Longitude <input id="lon" type="number" step="0.0001" value="73.86"></label>
-      <button id="loadBtn">Load weather</button>
+    <section class="card">
+  <h2>1. Location & data</h2>
+
+  <div class="location-picker">
+
+    <h3>📍 Your Location</h3>
+
+    <button id="locationBtn" type="button">
+      📍 Use My Location
+    </button>
+
+    <p id="locationStatus">
+      Automatically detect your current location.
+    </p>
+
+    <div class="location-divider">
+      <span>OR</span>
     </div>
-    <p id="status">Enter a location and load forecast data.</p>
-    <small>Prototype weather source: Open-Meteo. Radiation may also be supplemented by NASA POWER. NOAA/ENSO is contextual climate evidence, not a direct 3–5 day local heat trigger.</small>
-  </section>
+
+    <label for="locationSearch">
+      🔎 Enter your location
+    </label>
+
+    <input
+      id="locationSearch"
+      type="text"
+      placeholder="Search city, area or place..."
+      autocomplete="off"
+    >
+
+    <button id="searchLocationBtn" type="button">
+      Search Location
+    </button>
+
+    <div id="locationResults"></div>
+
+    <div id="selectedLocation">
+      📍 No location selected
+    </div>
+
+    <!-- Coordinates are kept internally -->
+    <input id="lat" type="hidden">
+    <input id="lon" type="hidden">
+
+    <button id="loadBtn" type="button">
+      Load weather
+    </button>
+
+  </div>
+
+  <p id="status">
+    Select your location to load environmental data.
+  </p>
+
+  <small>
+    Location can be detected automatically from the device or selected manually.
+    Environmental observations are sourced from NASA POWER.
+    Coordinates are used internally for data retrieval and research audit.
+  </small>
+
+</section>
 
   <section class="card">
     <h2>2. Current / selected-hour environmental inputs</h2>
