@@ -129,7 +129,7 @@ jobs:
             }
           };
 
-          if (output.environment.solar_radiation_wm2 === null) {
+          if (output.properties.environment.solar_radiation_wm2 === null) {
             output.quality.missing_fields.push(
               "environment.solar_radiation_wm2"
             );
