@@ -1,0 +1,50 @@
+name: NASA POWER Auto-Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  nasa-sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Fetch latest NASA POWER data
+        env:
+          LATITUDE: "18.5204"
+          LONGITUDE: "73.8567"
+        run: |
+          mkdir -p data/live
+
+          DATE=$(date -u +"%Y%m%d")
+
+          URL="https://power.larc.nasa.gov/api/temporal/hourly/point?parameters=T2M,RH2M,WS10M,T2MWET,T2MDEW,ALLSKY_SFC_SW_DWN&community=SB&longitude=${LONGITUDE}&latitude=${LATITUDE}&start=${DATE}&end=${DATE}&format=JSON&time-standard=UTC"
+
+          curl --fail --silent --show-error "$URL" \
+            -o data/live/nasa-power-current.json
+
+      - name: Validate NASA response
+        run: |
+          test -s data/live/nasa-power-current.json
+          node -e "JSON.parse(require('fs').readFileSync('data/live/nasa-power-current.json','utf8')); console.log('NASA JSON is valid.')"
+
+      - name: Commit updated NASA data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/live/nasa-power-current.json
+
+          if git diff --cached --quiet; then
+            echo "No NASA data changes to commit."
+          else
+            git commit -m "Auto-sync NASA POWER data"
+            git push
+          fi
