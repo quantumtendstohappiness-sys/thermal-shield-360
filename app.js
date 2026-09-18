@@ -353,9 +353,8 @@ function useMyLocation() {
       $("lon").value = longitude;
 
       try {
-  const response = await fetch(
-    `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
-  );
+  const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
+  const response = await fetch(nominatimUrl);
 
   if (!response.ok) {
     throw new Error("Reverse geocoding failed.");
