@@ -272,10 +272,10 @@ Medical status:
 ${htsiResult.medical_status}`;
 
   
-  $("sourceLog").textContent =
-  `Weather: NASA POWER synchronized observation ` +
-  `(T2M, RH2M, WS10M, T2MWET, T2MDEW, ALLSKY_SFC_SW_DWN).`;
-  
+      $("sourceLog").textContent =
+    `Weather: NASA POWER synchronized observation
+(T2M, RH2M, WS10M, T2MWET, T2MDEW, ALLSKY_SFC_SW_DWN).
+
 Heat Index: Thermal Shield 360 Heat Index engine
 using NOAA/NWS-style Rothfusz methodology.
 
