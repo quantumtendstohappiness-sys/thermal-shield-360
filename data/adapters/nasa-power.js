@@ -72,7 +72,13 @@ function buildNASAUrl({
 
   return `${NASA_POWER_BASE_URL}?${params.toString()}`;
 }
+function cleanNASAValue(value) {
+  if (value === -999 || value === -999.0) {
+    return null;
+  }
 
+  return Number.isFinite(value) ? value : null;
+}
 function parseNASAResponse(data) {
   if (!data || !data.properties) {
     throw new Error(
@@ -97,34 +103,40 @@ function parseNASAResponse(data) {
     time: {
       timestamp,
       timezone: "UTC",
-      forecast_lead_hours: 0
+      forecast_lead_hours: null
     },
 
     environment: {
       air_temperature_c:
-        parameterData.T2M?.[timestamp] ?? null,
+       cleanNASAValue(parameterData.T2M?.[timestamp]),
 
       relative_humidity_pct:
-        parameterData.RH2M?.[timestamp] ?? null,
+       cleanNASAValue(parameterData.RH2M?.[timestamp]),
 
       wind_speed_ms:
-        parameterData.WS10M?.[timestamp] ?? null,
+       cleanNASAValue(parameterData.WS10M?.[timestamp]),
 
       solar_radiation_wm2:
-        parameterData.ALLSKY_SFC_SW_DWN?.[timestamp] ?? null,
+       cleanNASAValue(
+        parameterData.ALLSKY_SFC_SW_DWN?.[timestamp]
+        ),
 
       nasa_wet_bulb_related_c:
-        parameterData.T2MWET?.[timestamp] ?? null,
+       cleanNASAValue(
+        parameterData.T2MWET?.[timestamp]
+        ),
 
       dew_point_c:
-        parameterData.T2MDEW?.[timestamp] ?? null
-    },
+       cleanNASAValue(
+        parameterData.T2MDEW?.[timestamp]
+        )
+},
 
     provenance: {
       source_id: "nasa_power",
       source_name:
         "NASA Prediction Of Worldwide Energy Resources (POWER)",
-      data_type: "observation",
+      data_type: "reanalysis",
       variable:
         "T2M,RH2M,WS10M,T2MWET,T2MDEW,ALLSKY_SFC_SW_DWN",
       units:
@@ -135,7 +147,11 @@ function parseNASAResponse(data) {
 
     quality: {
       quality_flag: "acceptable",
-      missing_fields: [],
+      missing_fields: [
+        ...(parameterData.ALLSKY_SFC_SW_DWN?.[timestamp] === -999
+          ? ["environment.solar_radiation_wm2"]
+          : [])
+      ],
       notes:
         "NASA POWER data. T2MWET is retained as a NASA POWER wet-bulb-related parameter and is not treated as measured natural wet-bulb temperature."
     }
