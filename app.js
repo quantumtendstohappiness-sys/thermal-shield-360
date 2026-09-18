@@ -329,6 +329,67 @@ async function loadENSO() {
   }
 }
 
+function useMyLocation() {
+  const status = $("locationStatus");
+
+  if (!navigator.geolocation) {
+    status.textContent =
+      "Location services are not supported by this browser.";
+    return;
+  }
+
+  status.textContent =
+    "⏳ Detecting your current location...";
+
+  navigator.geolocation.getCurrentPosition(
+    function (position) {
+      const latitude =
+        Number(position.coords.latitude.toFixed(6));
+
+      const longitude =
+        Number(position.coords.longitude.toFixed(6));
+
+      $("lat").value = latitude;
+      $("lon").value = longitude;
+
+      $("selectedLocation").textContent =
+        "📍 Your current device location";
+
+      status.textContent =
+        "✓ Location detected successfully.";
+
+      $("status").textContent =
+        "Your device location has been detected. Ready to load environmental data.";
+    },
+
+    function (error) {
+      if (error.code === 1) {
+        status.textContent =
+          "Location permission denied. Please allow location access in Chrome.";
+      } else if (error.code === 2) {
+        status.textContent =
+          "Location unavailable. Please turn on device Location.";
+      } else if (error.code === 3) {
+        status.textContent =
+          "Location request timed out. Please try again.";
+      } else {
+        status.textContent =
+          "Unable to detect your location.";
+      }
+    },
+
+    {
+      enableHighAccuracy: true,
+      timeout: 15000,
+      maximumAge: 300000
+    }
+  );
+}
+
+$("locationBtn").addEventListener(
+  "click",
+  useMyLocation
+);
 $("loadBtn").addEventListener(
   "click",
   loadWeather
