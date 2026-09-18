@@ -525,9 +525,9 @@ function useMyLocation() {
     },
 
     {
-      enableHighAccuracy: true,
-      timeout: 15000,
-      maximumAge: 300000
+  enableHighAccuracy: false,
+  timeout: 30000,
+  maximumAge: 600000
     }
   );
 }
