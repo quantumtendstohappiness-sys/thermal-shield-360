@@ -1,0 +1,77 @@
+name: ECMWF Open Data Auto-Sync
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "41 */6 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  ecmwf-sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ECMWF dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ecmwf-opendata eccodes
+
+      - name: Retrieve and validate ECMWF data
+        env:
+          ECMWF_TEST_LATITUDE: "0.0"
+          ECMWF_TEST_LONGITUDE: "0.0"
+        run: |
+          set -euo pipefail
+
+          mkdir -p data/live
+
+          temporary_json="$(mktemp)"
+
+          python data/adapters/ecmwf.py \
+            --latitude "${ECMWF_TEST_LATITUDE}" \
+            --longitude "${ECMWF_TEST_LONGITUDE}" \
+            --output "${temporary_json}"
+
+          test -s "${temporary_json}"
+
+          python -m json.tool "${temporary_json}" >/dev/null
+
+          if test -f data/live/ecmwf-current.json; then
+            if cmp -s \
+              <(jq 'del(.properties.retrieved_at)' "${temporary_json}") \
+              <(jq 'del(.properties.retrieved_at)' "data/live/ecmwf-current.json")
+            then
+              echo "ECMWF forecast payload is unchanged; preserving existing live file."
+              rm -f "${temporary_json}"
+              exit 0
+            fi
+          fi
+
+          mv "${temporary_json}" data/live/ecmwf-current.json
+
+      - name: Commit changed ECMWF data
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/live/ecmwf-current.json
+
+          if git diff --cached --quiet; then
+            echo "No ECMWF data changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Auto-sync latest ECMWF Open Data forecast"
+          git push
