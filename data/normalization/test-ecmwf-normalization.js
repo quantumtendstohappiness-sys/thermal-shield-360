@@ -234,7 +234,7 @@ function testRelativeHumidityRemainsPending() {
   );
 }
 
-function testSSRDRemainsRaw() {
+function testSSRDNormalization() {
   const normalized = normalizeSourcePayload();
 
   const rawSSRD =
@@ -243,15 +243,21 @@ function testSSRDRemainsRaw() {
   const rawUnits =
     sourcePayload.properties.parameters.ssrd.raw_units;
 
-  assert.equal(
-    normalized.environment.solar_radiation_wm2,
-    null
-  );
+  const expectedDurationSeconds = 3 * 60 * 60;
+  const expectedRadiation = rawSSRD / expectedDurationSeconds;
 
   assert.ok(
-    normalized.quality.pending_fields.includes(
-      "environment.solar_radiation_wm2"
-    )
+    Math.abs(
+      normalized.environment.solar_radiation_wm2 - 167.92
+    ) < 0.01
+  );
+  assert.equal(
+    normalized.environment.solar_radiation_wm2,
+    expectedRadiation
+  );
+  assert.notEqual(
+    normalized.environment.solar_radiation_wm2,
+    rawSSRD / 3600
   );
 
   const lineage = findLineage(
@@ -263,17 +269,98 @@ function testSSRDRemainsRaw() {
   assert.equal(lineage.native_value, rawSSRD);
   assert.equal(lineage.native_unit, rawUnits);
   assert.equal(lineage.native_unit, "J m**-2");
-  assert.equal(lineage.normalized_value, null);
-  assert.equal(lineage.normalized_unit, null);
-  assert.equal(lineage.status, "source");
+  assert.equal(lineage.normalized_value, expectedRadiation);
+  assert.equal(lineage.normalized_unit, "W/m2");
+  assert.equal(lineage.status, "derived");
+  assert.deepEqual(lineage.accumulation, {
+    start_step: 0,
+    end_step: 3,
+    period_steps: 3,
+    step_unit: "hour",
+    seconds_per_step: 3600,
+    duration_seconds: expectedDurationSeconds
+  });
   assert.match(
     lineage.transformation,
-    /not converted/
+    /accumulation-period average, not instantaneous irradiance/
   );
 
-  assert.notEqual(
-    lineage.normalized_value,
+  assert.strictEqual(
+    lineage.native_value,
     rawSSRD
+);
+
+  assert.deepEqual(normalized.time.accumulation, {
+    start_step: 0,
+    end_step: 3,
+    period_steps: 3
+  });
+}
+
+function testSSRDMissingAndInvalidMetadataRemainPending() {
+  const cases = [
+    (payload) => {
+      payload.properties.parameters.ssrd.raw_value = null;
+    },
+    (payload) => {
+      payload.properties.parameters.ssrd.accumulation_end_step = 0;
+    },
+    (payload) => {
+      payload.properties.parameters.ssrd.raw_units = "W m**-2";
+    },
+    (payload) => {
+      payload.properties.parameters.ssrd.step_unit = "fortnights";
+    }
+  ];
+
+  for (const mutate of cases) {
+    const payload = clone(sourcePayload);
+    mutate(payload);
+
+    const normalized = normalizeECMWFPayload(payload);
+    const lineage = findLineage(
+      normalized,
+      "solar_radiation_wm2"
+    );
+
+    assert.equal(
+      normalized.environment.solar_radiation_wm2,
+      null
+    );
+    assert.ok(
+      normalized.quality.pending_fields.includes(
+        "environment.solar_radiation_wm2"
+      )
+    );
+    assert.equal(lineage.normalized_value, null);
+    assert.equal(lineage.status, "missing");
+  }
+}
+
+function testSSRDDurationUsesSourceStepInterval() {
+  const payload = clone(sourcePayload);
+  const field = payload.properties.parameters.ssrd;
+
+  payload.properties.forecast_valid_time_utc =
+    "2026-09-19T12:00:00Z";
+  field.valid_time_utc = "2026-09-19T12:00:00Z";
+  field.forecast_step = 6;
+  field.accumulation_end_step = 6;
+  field.accumulation_period_steps = 6;
+  field.step_range = "0-6";
+
+  const normalized = normalizeECMWFPayload(payload);
+  const expected = field.raw_value / (6 * 60 * 60);
+
+  assert.equal(
+    normalized.environment.solar_radiation_wm2,
+    expected
+  );
+  assert.equal(
+    normalized.provenance.variables.find(
+      (item) => item.canonical_variable === "solar_radiation_wm2"
+    ).accumulation.duration_seconds,
+    21600
   );
 }
 
@@ -562,7 +649,9 @@ testKelvinToCelsius();
 testDewPointUses2dAsDewPoint();
 testWindSpeedMagnitude();
 testRelativeHumidityRemainsPending();
-testSSRDRemainsRaw();
+testSSRDNormalization();
+testSSRDMissingAndInvalidMetadataRemainPending();
+testSSRDDurationUsesSourceStepInterval();
 testSurfaceTemperatureUsesSktOnly();
 testCoreMissingFieldsOnly();
 testQualityFlagForCoreAndPendingFields();

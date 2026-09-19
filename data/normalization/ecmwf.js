@@ -6,7 +6,7 @@
  * data/adapters/ecmwf_adapter.py.
  *
  * It does not fetch data, modify raw data, derive relative humidity,
- * convert ssrd, calculate wind direction, or calculate thermal indices.
+ * calculate wind direction, or calculate thermal indices.
  */
 
 "use strict";
@@ -28,6 +28,178 @@ function requireFinite(value, label) {
 
 function kelvinToCelsius(value, label) {
   return requireFinite(value, label) - 273.15;
+}
+
+const STEP_UNIT_SECONDS = {
+  second: 1,
+  seconds: 1,
+  s: 1,
+  minute: 60,
+  minutes: 60,
+  min: 60,
+  hour: 3600,
+  hours: 3600,
+  h: 3600,
+  day: 86400,
+  days: 86400,
+  d: 86400
+};
+
+function stepUnitSeconds(value) {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  return STEP_UNIT_SECONDS[value.trim().toLowerCase()] || null;
+}
+
+function optionalRawValue(field) {
+  if (!field || !isFiniteNumber(field.raw_value)) {
+    return null;
+  }
+
+  return field.raw_value;
+}
+
+function energyPerAreaUnit(value) {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/²/g, "2")
+    .replace(/−/g, "-");
+
+  return [
+    "j m**-2",
+    "j m^-2",
+    "j m-2",
+    "j/m2",
+    "j m2-1"
+  ].includes(normalized);
+}
+
+function accumulationMetadata(field, initializationTime, validTime, forecastStep) {
+  if (!field || !isFiniteNumber(forecastStep) || forecastStep <= 0) {
+    return null;
+  }
+
+  const startStep = field.accumulation_start_step;
+  const endStep = field.accumulation_end_step;
+  const periodSteps = field.accumulation_period_steps;
+
+  if (
+    !isFiniteNumber(startStep) ||
+    !isFiniteNumber(endStep) ||
+    endStep <= startStep ||
+    (periodSteps !== null &&
+      periodSteps !== undefined &&
+      (!isFiniteNumber(periodSteps) || periodSteps !== endStep - startStep))
+  ) {
+    return null;
+  }
+
+  const stepRangeMatch =
+    typeof field.step_range === "string"
+      ? field.step_range.trim().match(/^(-?\d+(?:\.\d+)?)-(-?\d+(?:\.\d+)?)$/)
+      : null;
+
+  if (
+    !stepRangeMatch ||
+    Number(stepRangeMatch[1]) !== startStep ||
+    Number(stepRangeMatch[2]) !== endStep
+  ) {
+    return null;
+  }
+
+  const explicitStepUnit =
+    field.step_unit ||
+    field.step_units ||
+    field.forecast_step_unit ||
+    null;
+  let secondsPerStep = stepUnitSeconds(explicitStepUnit);
+  let stepUnit = explicitStepUnit;
+
+  if (explicitStepUnit && secondsPerStep === null) {
+    return null;
+  }
+
+  if (secondsPerStep === null) {
+    const initializationMilliseconds = Date.parse(initializationTime);
+    const validMilliseconds = Date.parse(validTime);
+    const elapsedSeconds =
+      (validMilliseconds - initializationMilliseconds) / 1000;
+
+    if (
+      !Number.isFinite(initializationMilliseconds) ||
+      !Number.isFinite(validMilliseconds) ||
+      !Number.isFinite(elapsedSeconds) ||
+      elapsedSeconds <= 0
+    ) {
+      return null;
+    }
+
+    secondsPerStep = elapsedSeconds / forecastStep;
+    const recognizedUnit = Object.entries(STEP_UNIT_SECONDS).find(
+      ([, seconds]) => Math.abs(secondsPerStep - seconds) < 1e-9
+    );
+
+    if (!recognizedUnit) {
+      return null;
+    }
+
+    stepUnit = recognizedUnit[0];
+    secondsPerStep = recognizedUnit[1];
+  }
+
+  const durationSeconds = (endStep - startStep) * secondsPerStep;
+
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    return null;
+  }
+
+  return {
+    start_step: startStep,
+    end_step: endStep,
+    period_steps: endStep - startStep,
+    step_unit: stepUnit,
+    seconds_per_step: secondsPerStep,
+    duration_seconds: durationSeconds
+  };
+}
+
+function normalizeSSRD(field, rawValue, initializationTime, validTime, forecastStep) {
+  const accumulation = accumulationMetadata(
+    field,
+    initializationTime,
+    validTime,
+    forecastStep
+  );
+
+  if (
+    rawValue === null ||
+    !energyPerAreaUnit(field?.raw_units) ||
+    !accumulation
+  ) {
+    return {
+      value: null,
+      accumulation,
+      transformation: null,
+      status: "missing"
+    };
+  }
+
+  return {
+    value: rawValue / accumulation.duration_seconds,
+    accumulation,
+    transformation:
+      "solar_radiation_wm2 = ssrd_J_m2 / " +
+      "accumulation_duration_seconds; accumulation-period average, " +
+      "not instantaneous irradiance",
+    status: "derived"
+  };
 }
 
 function rawParameter(payload, parameterName) {
@@ -79,7 +251,8 @@ function variableLineage({
   forecastStep = null,
   stepRange = null,
   rawRecordRef = null,
-  inputVariables = []
+  inputVariables = [],
+  accumulation = null
 }) {
   return {
     canonical_variable: canonicalVariable,
@@ -96,7 +269,8 @@ function variableLineage({
     forecast_valid_time: forecastValidTime,
     forecast_step: forecastStep,
     step_range: stepRange,
-    raw_record_ref: rawRecordRef
+    raw_record_ref: rawRecordRef,
+    accumulation
   };
 }
 
@@ -150,10 +324,7 @@ function normalizeECMWFPayload(rawPayload) {
     "ECMWF 10v raw_value"
   );
 
-  const radiationRaw = rawValue(
-    radiationField,
-    "ECMWF ssrd raw_value"
-  );
+  const radiationRaw = optionalRawValue(radiationField);
 
   const skinRaw = rawValue(
     skinField,
@@ -206,6 +377,15 @@ function normalizeECMWFPayload(rawPayload) {
     airField?.forecast_step ??
     dewPointField?.forecast_step ??
     null;
+
+  const radiationNormalization = normalizeSSRD(
+    radiationField,
+    radiationRaw,
+    radiationField?.forecast_initialization_time_utc ||
+      initializationTime,
+    radiationField?.valid_time_utc || validTime,
+    radiationField?.forecast_step ?? forecastStep
+  );
 
   const requestedCoordinate =
     properties.requested_coordinate || null;
@@ -452,26 +632,24 @@ function normalizeECMWFPayload(rawPayload) {
     }),
 
     /*
-     * Raw ssrd is preserved as source data. No W/m2 value or unit
-     * is claimed because conversion has not occurred.
+    * Raw ssrd remains preserved as source data while the normalized
+    * value represents the verified accumulation-period average.
      */
     variableLineage({
       canonicalVariable: "solar_radiation_wm2",
       sourceVariable: "ssrd",
       nativeValue: radiationRaw,
       nativeUnit: radiationField?.raw_units || null,
-      normalizedValue: null,
-      normalizedUnit: null,
-      status:
-        radiationField && radiationRaw !== null
-          ? "source"
-          : "missing",
+      normalizedValue: radiationNormalization.value,
+      normalizedUnit:
+        radiationNormalization.value === null ? null : "W/m2",
+      status: radiationNormalization.status,
       transformation:
-        radiationField && radiationRaw !== null
-          ? "W/m2 normalization intentionally pending exact " +
-            "accumulation-interval verification. Raw accumulated " +
-            "ssrd remains in native J/m2 and is not converted."
-          : "Raw ssrd is unavailable; no radiation value is fabricated.",
+        radiationNormalization.transformation ||
+        (radiationField && radiationRaw !== null
+          ? "ssrd normalization unavailable because energy-per-area " +
+            "units or accumulation metadata are invalid; no value fabricated."
+          : "Raw ssrd is unavailable; no radiation value is fabricated."),
       sourceTimestamp:
         radiationField?.valid_time_utc ||
         validTime,
@@ -485,6 +663,7 @@ function normalizeECMWFPayload(rawPayload) {
         radiationField?.forecast_step ??
         forecastStep,
       stepRange: radiationField?.step_range || null,
+      accumulation: radiationNormalization.accumulation,
       rawRecordRef: rawReference("ssrd", radiationField)
     })
   ];
@@ -525,7 +704,7 @@ function normalizeECMWFPayload(rawPayload) {
       wind_direction_deg: null,
       dew_point_c: dewPointC,
       pressure_hpa: null,
-      solar_radiation_wm2: null,
+      solar_radiation_wm2: radiationNormalization.value,
       surface_temperature_c: surfaceTemperatureC,
       rainfall_mm: null
     },
@@ -567,4 +746,3 @@ module.exports = {
   normalizeECMWFPayload,
   kelvinToCelsius
 };
-```
