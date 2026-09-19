@@ -34,6 +34,82 @@
           "type": "number",
           "minimum": -180,
           "maximum": 180
+        },
+        "requested_coordinate": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "latitude",
+            "longitude"
+          ],
+          "properties": {
+            "latitude": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            },
+            "longitude": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            }
+          }
+        },
+        "source_grid": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "required": [
+            "latitude",
+            "longitude"
+          ],
+          "properties": {
+            "latitude": {
+              "type": "number",
+              "minimum": -90,
+              "maximum": 90
+            },
+            "longitude": {
+              "type": "number",
+              "minimum": -180,
+              "maximum": 180
+            },
+            "flat_index": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "grid_id": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "resolution": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "selection_method": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "distance_from_requested": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
         }
       }
     },
@@ -58,6 +134,62 @@
             "null"
           ],
           "minimum": 0
+        },
+        "forecast_initialization_time": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "forecast_valid_time": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
+        },
+        "forecast_step": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "step_range": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "accumulation": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "properties": {
+            "start_step": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "end_step": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "period_steps": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            }
+          }
         }
       }
     },
@@ -189,6 +321,89 @@
         "retrieved_at": {
           "type": "string",
           "format": "date-time"
+        },
+
+        "data_status": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "environmental",
+            "forecast",
+            "reference",
+            "derived",
+            null
+          ]
+        },
+
+        "variables": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "canonical_variable",
+              "source_variable",
+              "normalized_unit",
+              "status"
+            ],
+            "properties": {
+              "canonical_variable": {
+                "type": "string"
+              },
+              "source_variable": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "native_unit": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "native_value": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "raw_record_ref": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "normalized_unit": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "source",
+                  "normalized",
+                  "derived",
+                  "missing"
+                ]
+              },
+              "input_variables": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "transformation": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
         }
       }
     },
