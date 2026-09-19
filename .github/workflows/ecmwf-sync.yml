@@ -73,5 +73,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "Auto-sync latest ECMWF Open Data forecast"
-          git push
+            git commit -m "Auto-sync latest ECMWF Open Data forecast"
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
