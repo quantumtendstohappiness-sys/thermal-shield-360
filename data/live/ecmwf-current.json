@@ -1,0 +1,169 @@
+{
+  "geometry": {
+    "coordinates": [
+      0.0,
+      0.0
+    ],
+    "type": "Point"
+  },
+  "properties": {
+    "data_type": "forecast",
+    "forecast_initialization_time_utc": "2026-09-19T00:00:00Z",
+    "forecast_step_requested": 3,
+    "forecast_valid_time_utc": "2026-09-19T03:00:00Z",
+    "model": "ifs",
+    "parameters": {
+      "10u": {
+        "accumulation_end_step": null,
+        "accumulation_period_steps": null,
+        "accumulation_start_step": null,
+        "forecast_initialization_time_utc": "2026-09-19T00:00:00Z",
+        "forecast_step": 3,
+        "nearest_grid_point": {
+          "flat_index": 519120,
+          "latitude": 0.0,
+          "longitude": 0.0
+        },
+        "raw_units": "m s**-1",
+        "raw_value": 3.7611846923828125,
+        "step_range": "3",
+        "valid_time_utc": "2026-09-19T03:00:00Z"
+      },
+      "10v": {
+        "accumulation_end_step": null,
+        "accumulation_period_steps": null,
+        "accumulation_start_step": null,
+        "forecast_initialization_time_utc": "2026-09-19T00:00:00Z",
+        "forecast_step": 3,
+        "nearest_grid_point": {
+          "flat_index": 519120,
+          "latitude": 0.0,
+          "longitude": 0.0
+        },
+        "raw_units": "m s**-1",
+        "raw_value": 4.057373046875,
+        "step_range": "3",
+        "valid_time_utc": "2026-09-19T03:00:00Z"
+      },
+      "2d": {
+        "accumulation_end_step": null,
+        "accumulation_period_steps": null,
+        "accumulation_start_step": null,
+        "forecast_initialization_time_utc": "2026-09-19T00:00:00Z",
+        "forecast_step": 3,
+        "nearest_grid_point": {
+          "flat_index": 519120,
+          "latitude": 0.0,
+          "longitude": 0.0
+        },
+        "raw_units": "K",
+        "raw_value": 293.8441162109375,
+        "step_range": "3",
+        "valid_time_utc": "2026-09-19T03:00:00Z"
+      },
+      "2t": {
+        "accumulation_end_step": null,
+        "accumulation_period_steps": null,
+        "accumulation_start_step": null,
+        "forecast_initialization_time_utc": "2026-09-19T00:00:00Z",
+        "forecast_step": 3,
+        "nearest_grid_point": {
+          "flat_index": 519120,
+          "latitude": 0.0,
+          "longitude": 0.0
+        },
+        "raw_units": "K",
+        "raw_value": 296.9691162109375,
+        "step_range": "3",
+        "valid_time_utc": "2026-09-19T03:00:00Z"
+      },
+      "skt": {
+        "accumulation_end_step": null,
+        "accumulation_period_steps": null,
+        "accumulation_start_step": null,
+        "forecast_initialization_time_utc": "2026-09-19T00:00:00Z",
+        "forecast_step": 3,
+        "nearest_grid_point": {
+          "flat_index": 519120,
+          "latitude": 0.0,
+          "longitude": 0.0
+        },
+        "raw_units": "K",
+        "raw_value": 298.79689025878906,
+        "step_range": "3",
+        "valid_time_utc": "2026-09-19T03:00:00Z"
+      },
+      "ssrd": {
+        "accumulation_end_step": 3,
+        "accumulation_period_steps": 3,
+        "accumulation_start_step": 0,
+        "forecast_initialization_time_utc": "2026-09-19T00:00:00Z",
+        "forecast_step": 3,
+        "nearest_grid_point": {
+          "flat_index": 519120,
+          "latitude": 0.0,
+          "longitude": 0.0
+        },
+        "raw_units": "J m**-2",
+        "raw_value": 0.0,
+        "step_range": "0-3",
+        "valid_time_utc": "2026-09-19T03:00:00Z"
+      },
+      "strd": {
+        "accumulation_end_step": 3,
+        "accumulation_period_steps": 3,
+        "accumulation_start_step": 0,
+        "forecast_initialization_time_utc": "2026-09-19T00:00:00Z",
+        "forecast_step": 3,
+        "nearest_grid_point": {
+          "flat_index": 519120,
+          "latitude": 0.0,
+          "longitude": 0.0
+        },
+        "raw_units": "J m**-2",
+        "raw_value": 4595017.6875,
+        "step_range": "0-3",
+        "valid_time_utc": "2026-09-19T03:00:00Z"
+      }
+    },
+    "requested_coordinate": {
+      "latitude": 0.0,
+      "longitude": 0.0
+    },
+    "resolution": "0p25",
+    "source": "ECMWF Open Data",
+    "source_id": "ecmwf_opendata",
+    "status": "raw/not normalized"
+  },
+  "provenance": {
+    "client_source": "ecmwf",
+    "model": "ifs",
+    "note": "Raw GRIB values and native GRIB units are preserved. The payload is raw/not normalized.",
+    "parameters": [
+      "2t",
+      "2d",
+      "10u",
+      "10v",
+      "ssrd",
+      "strd",
+      "skt"
+    ],
+    "provider": "ECMWF Open Data",
+    "resolution": "0p25",
+    "retrieved_at": "2026-09-19T09:09:49.626803Z",
+    "source_id": "ecmwf_opendata",
+    "subset_area": [
+      1.0,
+      -1.0,
+      -1.0,
+      1.0
+    ]
+  },
+  "quality": {
+    "missing_fields": [],
+    "notes": "Nearest selection used paired GRIB latitude/longitude arrays. ssrd and strd retain their actual GRIB stepRange metadata; no accumulation period was inferred from the forecast step.",
+    "quality_flag": "acceptable",
+    "status": "raw/not normalized"
+  },
+  "type": "Feature"
+}
