@@ -37,7 +37,7 @@ jobs:
 
           temporary_json="$(mktemp)"
 
-          python data/adapters/ecmwf.py \
+          python data/adapters/ecmwf_adapter.py \
             --latitude "${ECMWF_TEST_LATITUDE}" \
             --longitude "${ECMWF_TEST_LONGITUDE}" \
             --output "${temporary_json}"
