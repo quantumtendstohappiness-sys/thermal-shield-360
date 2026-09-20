@@ -80,6 +80,22 @@
 </section>
 
   <section class="card">
+    <h2>1. NASA POWER research-data display</h2>
+    <p id="nasaResearchStatus">NASA POWER data will appear here after a location is loaded.</p>
+    <div id="nasaResearchSummary" class="nasa-summary" hidden></div>
+    <div id="nasaResearchParameters" class="nasa-parameters"></div>
+    <details id="nasaResearchRawDetails" hidden>
+      <summary>Raw NASA POWER response</summary>
+      <pre id="nasaResearchRaw"></pre>
+    </details>
+    <p class="note">
+      NASA POWER values are shown from the existing observation request. Native and
+      normalized units, timestamps, coordinates, provenance and missing values are
+      preserved and are not connected to HTSI.
+    </p>
+  </section>
+
+  <section class="card">
     <h2>2. ECMWF research-data display</h2>
     <p id="ecmwfStatus">ECMWF forecast data will appear here after a location is loaded.</p>
     <div id="ecmwfSummary" class="ecmwf-summary" hidden></div>

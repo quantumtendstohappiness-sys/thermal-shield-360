@@ -244,7 +244,13 @@ function updateThermalShieldFusion() {
       .filter(source => normalizedHasVariable(source, variable))
       .map(source => normalizedVariableRecord(source, variable))
   );
-  const quality = window.ThermalShieldFusionQualityGate.evaluateRecords(
+  const qualityGate = window.ThermalShieldFusionQualityGate;
+  if (!qualityGate || typeof qualityGate.evaluateRecords !== "function") {
+    throw new Error(
+      "Fusion quality gate failed to load from data/fusion/quality-gate.js."
+    );
+  }
+  const quality = qualityGate.evaluateRecords(
     records
   );
   const alignments = [];
@@ -419,6 +425,11 @@ function wbgtProxy(T, RH, wind, rad) {
 async function loadWeather() {
   $("status").textContent =
     "Loading NASA POWER data for your selected location…";
+  $("nasaResearchStatus").textContent =
+    "Loading NASA POWER research data…";
+  $("nasaResearchSummary").hidden = true;
+  $("nasaResearchRawDetails").hidden = true;
+  $("nasaResearchParameters").replaceChildren();
 
   try {
     const latitude = Number($("lat").value);
@@ -567,6 +578,13 @@ async function loadWeather() {
       timestamp: latestTimestamp,
       parameterData
     });
+    renderNASAResearch(
+      data,
+      thermalShieldFusionSources.nasa,
+      latitude,
+      longitude,
+      latestTimestamp
+    );
     updateThermalShieldFusion();
 
     $("lat").value = latitude;
@@ -589,12 +607,16 @@ async function loadWeather() {
       `Source: NASA POWER. ` +
       `Solar radiation: ` +
       `${Number.isFinite(solarRadiation) ? "available" : "unavailable"}.`;
+    $("nasaResearchStatus").textContent =
+      `Loaded NASA POWER observation ${latestTimestamp} UTC.`;
 
     calculate();
 
   } catch (e) {
     $("status").textContent =
       `NASA POWER load failed: ${e.message}`;
+    $("nasaResearchStatus").textContent =
+      `NASA POWER research-data load failed: ${e.message}`;
   }
 }
 
@@ -604,6 +626,88 @@ function displayValue(value) {
   }
 
   return String(value);
+}
+
+function addNASAField(container, label, value) {
+  const field = document.createElement("div");
+  const heading = document.createElement("b");
+  const content = document.createElement("span");
+  heading.textContent = label;
+  content.textContent = displayValue(value);
+  field.append(heading, content);
+  container.appendChild(field);
+}
+
+function nasaCoordinateValue(coordinates) {
+  if (!Array.isArray(coordinates)) return null;
+  return coordinates
+    .slice(0, 3)
+    .map(value => displayValue(value))
+    .join(", ");
+}
+
+function renderNASAResearch(data, normalized, requestedLatitude, requestedLongitude, timestamp) {
+  const properties = data?.properties || {};
+  const parameterData = properties.parameter;
+  const provenance = normalized?.provenance || {};
+  const quality = normalized?.quality || {};
+  const summary = $("nasaResearchSummary");
+  const parametersBox = $("nasaResearchParameters");
+  const lineages = Array.isArray(provenance.variables)
+    ? provenance.variables
+    : [];
+  const lineagesBySourceVariable = new Map(
+    lineages.map(lineage => [lineage.source_variable, lineage])
+  );
+
+  summary.replaceChildren();
+  parametersBox.replaceChildren();
+
+  addNASAField(summary, "Source", "NASA POWER");
+  addNASAField(summary, "Observation timestamp (UTC)", timestamp);
+  addNASAField(
+    summary,
+    "Requested coordinate",
+    `${requestedLatitude}, ${requestedLongitude}`
+  );
+  addNASAField(
+    summary,
+    "Observation coordinate",
+    nasaCoordinateValue(data?.geometry?.coordinates)
+  );
+  addNASAField(summary, "Data type", provenance.data_type);
+  addNASAField(summary, "Status", provenance.data_status);
+  addNASAField(summary, "Quality", quality.quality_flag);
+  addNASAField(summary, "Retrieved (UTC)", provenance.retrieved_at);
+  addNASAField(summary, "Available parameters", parameterData
+    ? Object.keys(parameterData).join(", ")
+    : null);
+  addNASAField(summary, "Provenance", provenance.source_name);
+
+  if (!parameterData || typeof parameterData !== "object") {
+    parametersBox.textContent = "No NASA POWER parameter values were supplied.";
+  } else {
+    Object.entries(parameterData).forEach(([name, values]) => {
+      const card = document.createElement("article");
+      card.className = "nasa-parameter";
+      const title = document.createElement("h3");
+      title.textContent = name;
+      card.appendChild(title);
+      const value = values?.[timestamp];
+      const lineage = lineagesBySourceVariable.get(name);
+      addNASAField(card, "Native value", value);
+      addNASAField(card, "Native units", lineage?.native_unit);
+      addNASAField(card, "Normalized value", lineage?.normalized_value);
+      addNASAField(card, "Normalized units", lineage?.normalized_unit);
+      addNASAField(card, "Timestamp (UTC)", lineage?.source_timestamp || timestamp);
+      addNASAField(card, "Status", lineage?.status);
+      parametersBox.appendChild(card);
+    });
+  }
+
+  $("nasaResearchRaw").textContent = JSON.stringify(data, null, 2);
+  summary.hidden = false;
+  $("nasaResearchRawDetails").hidden = false;
 }
 
 function addECMWFField(container, label, value) {

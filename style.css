@@ -39,6 +39,36 @@
   margin: 14px 0;
 }
 
+.nasa-summary,
+.nasa-parameters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.nasa-summary>div,
+.nasa-parameter {
+  padding: 12px;
+  border: 1px solid #e0e7ee;
+  border-radius: 12px;
+}
+
+.nasa-summary span,
+.nasa-parameter span {
+  display: block;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.nasa-parameter h3 {
+  margin: 0 0 10px;
+}
+
+#nasaResearchRawDetails {
+  margin-top: 14px;
+}
+
 .ecmwf-summary>div,
 .ecmwf-parameter {
   padding: 12px;
