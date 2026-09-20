@@ -387,6 +387,8 @@ function normalizeECMWFPayload(rawPayload) {
     radiationField?.forecast_step ?? forecastStep
   );
 
+  const solarRadiationWm2 = radiationNormalization.value;
+
   const requestedCoordinate =
     properties.requested_coordinate || null;
 
@@ -420,9 +422,12 @@ function normalizeECMWFPayload(rawPayload) {
    * These fields are intentionally deferred rather than core-missing.
    */
   const pendingFields = [
-    "environment.relative_humidity_pct",
-    "environment.solar_radiation_wm2"
+    "environment.relative_humidity_pct"
   ];
+
+  if (solarRadiationWm2 === null) {
+    pendingFields.push("environment.solar_radiation_wm2");
+  };
 
   /*
    * These fields are not supplied by the current ECMWF mapping,
@@ -734,7 +739,7 @@ function normalizeECMWFPayload(rawPayload) {
         "ECMWF remains forecast/model data.",
         "Raw source values and native units remain traceable.",
         "RH derivation is intentionally pending.",
-        "W/m2 normalization for ssrd is intentionally pending.",
+        "W/m2 normalization for ssrd is pending only when accumulation metadata is unavailable or invalid.",
         "No wind direction, pressure, rainfall, wet-bulb, or " +
         "globe-temperature value is created."
       ].join(" ")

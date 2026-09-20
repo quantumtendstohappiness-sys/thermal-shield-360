@@ -204,11 +204,12 @@ function testRelativeHumidityRemainsPending() {
     null
   );
 
-  assert.ok(
-    normalized.quality.pending_fields.includes(
-      "environment.relative_humidity_pct"
-    )
-  );
+  assert.equal(
+      normalized.quality.pending_fields.includes(
+        "environment.relative_humidity_pct"
+      ),
+      true
+    );
 
   const lineage = findLineage(
     normalized,
@@ -327,10 +328,11 @@ function testSSRDMissingAndInvalidMetadataRemainPending() {
       normalized.environment.solar_radiation_wm2,
       null
     );
-    assert.ok(
+    assert.equal(
       normalized.quality.pending_fields.includes(
         "environment.solar_radiation_wm2"
-      )
+      ),
+      normalized.environment.solar_radiation_wm2 === null
     );
     assert.equal(lineage.normalized_value, null);
     assert.equal(lineage.status, "missing");
@@ -505,11 +507,12 @@ function testQualityFlagForCoreAndPendingFields() {
     )
   );
 
-  assert.ok(
-    normalized.quality.pending_fields.includes(
-      "environment.solar_radiation_wm2"
-    )
-  );
+  assert.equal(
+      normalized.quality.pending_fields.includes(
+        "environment.solar_radiation_wm2"
+      ),
+      normalized.environment.solar_radiation_wm2 === null
+    );
 
   const missingCore = clone(validPayload);
   missingCore.properties.parameters["2t"].raw_value =
