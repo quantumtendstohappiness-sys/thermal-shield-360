@@ -1,2 +1,11 @@
+[project]
+name = "thermal-shield-360"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "ecmwf-opendata",
+  "eccodes"
+]
+
 [tool.vercel]
 entrypoint = "api.ecmwf:handler"
