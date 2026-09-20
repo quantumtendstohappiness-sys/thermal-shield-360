@@ -41,16 +41,35 @@ function normalizedVariableRecord(normalized, variable) {
     variable,
     value: normalized.environment[variable],
     unit: lineage.normalized_unit,
-    timestamp: normalized.time.timestamp,
+    timestamp:
+      lineage.source_timestamp ??
+      lineage.forecast_valid_time ??
+      normalized.time.timestamp,
     retrieved_at: normalized.provenance.retrieved_at,
-    location: normalized.location,
+    location: {
+      ...normalized.location,
+      source_grid: lineage.source_grid ?? normalized.location.source_grid
+    },
     data_type: normalized.provenance.data_type,
     quality_flag: normalized.quality.quality_flag,
+    forecast: {
+      initialization_time:
+        lineage.forecast_initialization_time ??
+        normalized.time.forecast_initialization_time ??
+        null,
+      valid_time:
+        lineage.forecast_valid_time ??
+        normalized.time.forecast_valid_time ??
+        null,
+      lead_hours: normalized.time.forecast_lead_hours ?? null,
+      step: lineage.forecast_step ?? normalized.time.forecast_step ?? null
+    },
     provenance: {
       source_id: normalized.provenance.source_id,
       source_name: normalized.provenance.source_name,
       data_type: normalized.provenance.data_type,
       retrieved_at: normalized.provenance.retrieved_at,
+      data_status: normalized.provenance.data_status,
       variables: [lineage]
     },
     quality: normalized.quality

@@ -236,6 +236,45 @@ function rawReference(parameterName, field) {
   return `${ECMWF_SOURCE_ID}:${parameterName}:${initialization}:${valid}`;
 }
 
+function commonFieldMetadata(fields, property) {
+  const values = fields.map((field) => field?.[property]);
+
+  if (
+    values.length === 0 ||
+    values.some((value) => typeof value !== "string" || !value.trim()) ||
+    values.some((value) => value !== values[0])
+  ) {
+    return null;
+  }
+
+  return values[0];
+}
+
+function commonGridPoint(fields) {
+  const points = fields.map((field) => field?.nearest_grid_point);
+
+  if (
+    points.length === 0 ||
+    points.some((point) =>
+      !point ||
+      !isFiniteNumber(point.latitude) ||
+      !isFiniteNumber(point.longitude)
+    ) ||
+    points.some((point) =>
+      point.latitude !== points[0].latitude ||
+      point.longitude !== points[0].longitude
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    flat_index: points[0].flat_index ?? null,
+    latitude: points[0].latitude,
+    longitude: points[0].longitude
+  };
+}
+
 function variableLineage({
   canonicalVariable,
   sourceVariable,
@@ -252,7 +291,8 @@ function variableLineage({
   stepRange = null,
   rawRecordRef = null,
   inputVariables = [],
-  accumulation = null
+  accumulation = null,
+  sourceGrid = null
 }) {
   return {
     canonical_variable: canonicalVariable,
@@ -270,7 +310,8 @@ function variableLineage({
     forecast_step: forecastStep,
     step_range: stepRange,
     raw_record_ref: rawRecordRef,
-    accumulation
+    accumulation,
+    source_grid: sourceGrid
   };
 }
 
@@ -360,17 +401,24 @@ function normalizeECMWFPayload(rawPayload) {
           "ECMWF skt raw_value"
         );
 
-  const validTime =
-    properties.forecast_valid_time_utc ||
-    airField?.valid_time_utc ||
-    dewPointField?.valid_time_utc ||
-    null;
+  const sourceFields = [
+    airField,
+    dewPointField,
+    uField,
+    vField,
+    skinField,
+    radiationField
+  ];
 
-  const initializationTime =
-    properties.forecast_initialization_time_utc ||
-    airField?.forecast_initialization_time_utc ||
-    dewPointField?.forecast_initialization_time_utc ||
-    null;
+  const validTime = commonFieldMetadata(
+    sourceFields,
+    "valid_time_utc"
+  );
+
+  const initializationTime = commonFieldMetadata(
+    sourceFields,
+    "forecast_initialization_time_utc"
+  );
 
   const forecastStep =
     properties.forecast_step_requested ??
@@ -393,13 +441,14 @@ function normalizeECMWFPayload(rawPayload) {
     properties.requested_coordinate || null;
 
   const sourceGrid =
-    airField?.nearest_grid_point ||
-    dewPointField?.nearest_grid_point ||
-    uField?.nearest_grid_point ||
-    vField?.nearest_grid_point ||
-    skinField?.nearest_grid_point ||
-    radiationField?.nearest_grid_point ||
-    null;
+    commonGridPoint([
+      airField,
+      dewPointField,
+      uField,
+      vField,
+      skinField,
+      radiationField
+    ]);
 
   /*
    * Only required/core normalized fields belong in missingFields.
@@ -469,7 +518,8 @@ function normalizeECMWFPayload(rawPayload) {
         airField?.forecast_step ??
         forecastStep,
       stepRange: airField?.step_range || null,
-      rawRecordRef: rawReference("2t", airField)
+      rawRecordRef: rawReference("2t", airField),
+      sourceGrid: airField?.nearest_grid_point || null
     }),
 
     variableLineage({
@@ -498,7 +548,8 @@ function normalizeECMWFPayload(rawPayload) {
         dewPointField?.forecast_step ??
         forecastStep,
       stepRange: dewPointField?.step_range || null,
-      rawRecordRef: rawReference("2d", dewPointField)
+      rawRecordRef: rawReference("2d", dewPointField),
+      sourceGrid: dewPointField?.nearest_grid_point || null
     }),
 
     variableLineage({
@@ -520,7 +571,8 @@ function normalizeECMWFPayload(rawPayload) {
         uField?.forecast_step ??
         forecastStep,
       stepRange: uField?.step_range || null,
-      rawRecordRef: rawReference("10u", uField)
+      rawRecordRef: rawReference("10u", uField),
+      sourceGrid: uField?.nearest_grid_point || null
     }),
 
     variableLineage({
@@ -542,7 +594,8 @@ function normalizeECMWFPayload(rawPayload) {
         vField?.forecast_step ??
         forecastStep,
       stepRange: vField?.step_range || null,
-      rawRecordRef: rawReference("10v", vField)
+      rawRecordRef: rawReference("10v", vField),
+      sourceGrid: vField?.nearest_grid_point || null
     }),
 
     variableLineage({
@@ -575,7 +628,8 @@ function normalizeECMWFPayload(rawPayload) {
       rawRecordRef: [
         rawReference("10u", uField),
         rawReference("10v", vField)
-      ].join("|")
+      ].join("|"),
+      sourceGrid: commonGridPoint([uField, vField])
     }),
 
     variableLineage({
@@ -605,7 +659,8 @@ function normalizeECMWFPayload(rawPayload) {
         skinField?.forecast_step ??
         forecastStep,
       stepRange: skinField?.step_range || null,
-      rawRecordRef: rawReference("skt", skinField)
+      rawRecordRef: rawReference("skt", skinField),
+      sourceGrid: skinField?.nearest_grid_point || null
     }),
 
     /*
@@ -633,7 +688,8 @@ function normalizeECMWFPayload(rawPayload) {
       rawRecordRef: [
         rawReference("2t", airField),
         rawReference("2d", dewPointField)
-      ].join("|")
+      ].join("|"),
+      sourceGrid: commonGridPoint([airField, dewPointField])
     }),
 
     /*
@@ -669,15 +725,16 @@ function normalizeECMWFPayload(rawPayload) {
         forecastStep,
       stepRange: radiationField?.step_range || null,
       accumulation: radiationNormalization.accumulation,
-      rawRecordRef: rawReference("ssrd", radiationField)
+      rawRecordRef: rawReference("ssrd", radiationField),
+      sourceGrid: radiationField?.nearest_grid_point || null
     })
   ];
 
   return {
     location: {
       name: "ECMWF Open Data grid point",
-      latitude: requestedCoordinate?.latitude ?? null,
-      longitude: requestedCoordinate?.longitude ?? null,
+      latitude: sourceGrid?.latitude ?? null,
+      longitude: sourceGrid?.longitude ?? null,
       requested_coordinate: requestedCoordinate,
       source_grid: sourceGrid
     },

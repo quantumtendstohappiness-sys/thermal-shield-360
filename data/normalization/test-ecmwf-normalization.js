@@ -247,9 +247,12 @@ function testSSRDNormalization() {
   const expectedDurationSeconds = 3 * 60 * 60;
   const expectedRadiation = rawSSRD / expectedDurationSeconds;
 
+  // The fixture contains 2,006,528 J/m2 accumulated over stepRange 0-3.
+  // Its initialization and valid times are three hours apart, so the
+  // accumulation-period average is 2,006,528 / 10,800 = 185.7896 W/m2.
   assert.ok(
     Math.abs(
-      normalized.environment.solar_radiation_wm2 - 167.92
+      normalized.environment.solar_radiation_wm2 - 185.7896
     ) < 0.01
   );
   assert.equal(
@@ -344,8 +347,8 @@ function testSSRDDurationUsesSourceStepInterval() {
   const field = payload.properties.parameters.ssrd;
 
   payload.properties.forecast_valid_time_utc =
-    "2026-09-19T12:00:00Z";
-  field.valid_time_utc = "2026-09-19T12:00:00Z";
+    "2026-09-20T12:00:00Z";
+  field.valid_time_utc = "2026-09-20T12:00:00Z";
   field.forecast_step = 6;
   field.accumulation_end_step = 6;
   field.accumulation_period_steps = 6;

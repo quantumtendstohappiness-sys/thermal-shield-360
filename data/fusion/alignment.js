@@ -134,10 +134,23 @@ function compareTemporal(recordA, recordB, config) {
 function getCoordinates(record) {
   const location = record?.location;
   const grid = location?.source_grid ?? record?.source_grid;
+  if (grid) {
+    return {
+      latitude: grid.latitude,
+      longitude: grid.longitude
+    };
+  }
+
   return {
-    latitude: grid?.latitude ?? location?.latitude,
-    longitude: grid?.longitude ?? location?.longitude
+    latitude: location?.latitude,
+    longitude: location?.longitude
   };
+}
+
+function longitudeDifference(first, second) {
+  return Math.abs(
+    (first - second + 540) % 360 - 180
+  );
 }
 
 function compareSpatial(recordA, recordB, config) {
@@ -161,7 +174,10 @@ function compareSpatial(recordA, recordB, config) {
 
   const difference = {
     latitude: Math.abs(coordinatesA.latitude - coordinatesB.latitude),
-    longitude: Math.abs(coordinatesA.longitude - coordinatesB.longitude)
+    longitude: longitudeDifference(
+      coordinatesA.longitude,
+      coordinatesB.longitude
+    )
   };
 
   return {
