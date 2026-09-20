@@ -1,8 +1,18 @@
 "use strict";
 
-const { calculateWeights } = require("./weighting");
-const { assessConfidence } = require("./confidence");
-const { analyzeDisagreement } = require("./disagreement");
+let calculateWeights;
+let assessConfidence;
+let analyzeDisagreement;
+
+if (typeof module !== "undefined" && module.exports) {
+  ({ calculateWeights } = require("./weighting"));
+  ({ assessConfidence } = require("./confidence"));
+  ({ analyzeDisagreement } = require("./disagreement"));
+} else if (typeof window !== "undefined") {
+  ({ calculateWeights } = window.ThermalShieldFusionWeighting);
+  ({ assessConfidence } = window.ThermalShieldFusionConfidence);
+  ({ analyzeDisagreement } = window.ThermalShieldFusionDisagreement);
+}
 
 const MISSING_VALUE = "missing_value";
 
