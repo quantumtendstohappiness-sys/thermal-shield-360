@@ -1,3 +1,4 @@
+(function () {
 "use strict";
 
 const DATA_TYPES = new Set([
@@ -328,3 +329,4 @@ if (typeof module !== "undefined" && module.exports) {
     evaluateRecords
   };
 }
+})();

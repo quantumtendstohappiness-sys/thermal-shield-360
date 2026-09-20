@@ -1,3 +1,4 @@
+(function () {
 "use strict";
 
 let calculateWeights;
@@ -273,3 +274,4 @@ const fuse = fuseRecords;
 
 if (typeof window !== "undefined") window.ThermalShieldFusion = { fuse, fuseRecords };
 if (typeof module !== "undefined" && module.exports) module.exports = { fuse, fuseRecords };
+})();

@@ -1,3 +1,4 @@
+(function () {
 "use strict";
 
 /**
@@ -276,3 +277,4 @@ if (typeof window !== "undefined") {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { alignRecords, DEFAULT_ALIGNMENT_CONFIG };
 }
+})();

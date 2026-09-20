@@ -1,10 +1,17 @@
 const $ = id => document.getElementById(id);
 
 let thermalShieldFusionResult = null;
-const thermalShieldFusionSources = {
-  nasa: null,
-  ecmwf: null
-};
+const thermalShieldFusionSources = new Map();
+
+function registerThermalShieldFusionSource(normalized) {
+  const sourceId = normalized?.provenance?.source_id;
+  if (typeof sourceId !== "string" || sourceId.trim() === "") {
+    throw new Error("Normalized source record is missing provenance.source_id.");
+  }
+
+  thermalShieldFusionSources.set(sourceId, normalized);
+  updateThermalShieldFusion();
+}
 
 function nasaTimestampToISO(timestamp) {
   const match = String(timestamp).match(
@@ -226,7 +233,7 @@ function renderThermalShieldFusion(result) {
 }
 
 function updateThermalShieldFusion() {
-  const sources = Object.values(thermalShieldFusionSources)
+  const sources = [...thermalShieldFusionSources.values()]
     .filter(Boolean);
 
   if (sources.length === 0) {
@@ -637,13 +644,12 @@ async function loadWeather() {
       );
     }
 
-    thermalShieldFusionSources.nasa = normalizeNASAObservation({
+    registerThermalShieldFusionSource(normalizeNASAObservation({
       latitude,
       longitude,
       timestamp: latestTimestamp,
       parameterData
-    });
-    updateThermalShieldFusion();
+    }));
 
     $("lat").value = latitude;
     $("lon").value = longitude;
@@ -910,9 +916,9 @@ async function loadECMWF(latitude, longitude) {
     }
 
     renderECMWF(data);
-    thermalShieldFusionSources.ecmwf =
-      window.normalizeECMWFPayload(data);
-    updateThermalShieldFusion();
+    registerThermalShieldFusionSource(
+      window.normalizeECMWFPayload(data)
+    );
     status.textContent =
       "Loaded ECMWF Open Data forecast. Values remain raw and separate from HTSI.";
     calculate();

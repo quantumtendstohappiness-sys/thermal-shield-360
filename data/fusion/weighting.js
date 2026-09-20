@@ -1,3 +1,4 @@
+(function () {
 "use strict";
 
 /**
@@ -279,3 +280,4 @@ if (typeof window !== "undefined") {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { calculateWeights, calculateSourceWeights, weightSources, weightRecords };
 }
+})();

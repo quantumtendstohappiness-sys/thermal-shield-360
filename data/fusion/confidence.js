@@ -1,3 +1,4 @@
+(function () {
 "use strict";
 
 const DEFAULT_OPTIONS = Object.freeze({
@@ -390,3 +391,4 @@ if (typeof window !== "undefined") {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = { assessConfidence, calculateConfidence, scoreConfidence };
 }
+})();

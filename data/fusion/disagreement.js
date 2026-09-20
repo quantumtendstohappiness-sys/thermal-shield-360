@@ -1,3 +1,4 @@
+(function () {
 "use strict";
 
 /**
@@ -233,3 +234,4 @@ if (typeof module !== "undefined" && module.exports) {
     assessDisagreement
   };
 }
+})();
