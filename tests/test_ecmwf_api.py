@@ -1,5 +1,8 @@
 import json
+from copy import deepcopy
+from io import BytesIO
 from types import SimpleNamespace
+from urllib.parse import urlencode
 
 import pytest
 
@@ -27,6 +30,45 @@ class DummyRequest:
         self.args = self.query
         self.query_params = self.query
         self.GET = self.query
+
+
+class DummySocket:
+    def __init__(self, request_bytes):
+        self._request = BytesIO(request_bytes)
+        self.response = BytesIO()
+
+    def makefile(self, mode, buffering=None):
+        return self._request if "r" in mode else self.response
+
+    def sendall(self, data):
+        self.response.write(data)
+
+    def close(self):
+        pass
+
+
+def _invoke(request, response):
+    path = request.url
+    if request.query:
+        path = f"{path}?{urlencode(request.query)}"
+    request_lines = [
+        f"{request.method} {path} HTTP/1.1",
+        "Host: example.com",
+        *(f"{key}: {value}" for key, value in request.headers.items()),
+        "",
+        "",
+    ]
+    socket = DummySocket("\r\n".join(request_lines).encode("ascii"))
+    server = SimpleNamespace(server_name="example.com", server_port=443)
+    handler(socket, ("127.0.0.1", 12345), server)
+
+    raw_response = socket.response.getvalue()
+    header_bytes, body_bytes = raw_response.split(b"\r\n\r\n", 1)
+    header_lines = header_bytes.decode("iso-8859-1").split("\r\n")
+    response.status = int(header_lines[0].split()[1])
+    response.headers = dict(line.split(": ", 1) for line in header_lines[1:])
+    response.body = body_bytes.decode("utf-8")
+    return response.body
 
 
 def _payload():
@@ -84,7 +126,7 @@ def test_valid_coordinates(monkeypatch, valid_response_payload):
     request = DummyRequest(query={"latitude": "45.0", "longitude": "12.5"}, headers={"Origin": "https://quantumtendstohappiness-sys.github.io"})
     response = DummyResponse()
 
-    body = handler(request, response)
+    body = _invoke(request, response)
     parsed = json.loads(body)
 
     assert response.status == 200
@@ -97,7 +139,7 @@ def test_invalid_latitude():
     request = DummyRequest(query={"latitude": "91", "longitude": "12.5"})
     response = DummyResponse()
 
-    body = handler(request, response)
+    body = _invoke(request, response)
     parsed = json.loads(body)
 
     assert response.status == 400
@@ -108,7 +150,7 @@ def test_invalid_longitude():
     request = DummyRequest(query={"latitude": "45", "longitude": "nan"})
     response = DummyResponse()
 
-    body = handler(request, response)
+    body = _invoke(request, response)
     parsed = json.loads(body)
 
     assert response.status == 400
@@ -119,7 +161,7 @@ def test_non_numeric_coordinates():
     request = DummyRequest(query={"latitude": "abc", "longitude": "12.5"})
     response = DummyResponse()
 
-    body = handler(request, response)
+    body = _invoke(request, response)
     parsed = json.loads(body)
 
     assert response.status == 400
@@ -130,7 +172,7 @@ def test_missing_coordinates():
     request = DummyRequest(query={})
     response = DummyResponse()
 
-    body = handler(request, response)
+    body = _invoke(request, response)
     parsed = json.loads(body)
 
     assert response.status == 400
@@ -138,13 +180,16 @@ def test_missing_coordinates():
 
 
 def test_longitude_normalization(monkeypatch, valid_response_payload):
-    monkeypatch.setattr("api.ecmwf.fetch_ecmwf", lambda latitude, longitude: (valid_response_payload, longitude)[0])
+    payload = deepcopy(valid_response_payload)
+    payload["properties"]["requested_coordinate"]["longitude"] = 190.0
+    payload["geometry"]["coordinates"][0] = 190.0
+    monkeypatch.setattr("api.ecmwf.fetch_ecmwf", lambda latitude, longitude: payload)
     monkeypatch.setattr("api.ecmwf.validate_document", lambda payload: None)
 
     request = DummyRequest(query={"latitude": "0", "longitude": "190"})
     response = DummyResponse()
 
-    body = handler(request, response)
+    body = _invoke(request, response)
     parsed = json.loads(body)
 
     assert parsed["properties"]["requested_coordinate"]["longitude"] == 190.0
@@ -158,7 +203,7 @@ def test_nearest_grid_metadata_preserved(monkeypatch, valid_response_payload):
     request = DummyRequest(query={"latitude": "45", "longitude": "12.5"})
     response = DummyResponse()
 
-    body = handler(request, response)
+    body = _invoke(request, response)
     parsed = json.loads(body)
 
     nearest = parsed["properties"]["parameters"]["2t"]["nearest_grid_point"]
@@ -172,7 +217,7 @@ def test_timestamp_preservation(monkeypatch, valid_response_payload):
     request = DummyRequest(query={"latitude": "45", "longitude": "12.5"})
     response = DummyResponse()
 
-    body = handler(request, response)
+    body = _invoke(request, response)
     parsed = json.loads(body)
 
     assert parsed["properties"]["forecast_initialization_time_utc"] == "2026-09-19T00:00:00Z"
@@ -187,7 +232,7 @@ def test_step_range_preservation(monkeypatch, valid_response_payload):
     request = DummyRequest(query={"latitude": "45", "longitude": "12.5"})
     response = DummyResponse()
 
-    body = handler(request, response)
+    body = _invoke(request, response)
     parsed = json.loads(body)
 
     assert parsed["properties"]["parameters"]["2t"]["step_range"] == "3"
@@ -200,7 +245,7 @@ def test_native_unit_preservation(monkeypatch, valid_response_payload):
     request = DummyRequest(query={"latitude": "45", "longitude": "12.5"})
     response = DummyResponse()
 
-    body = handler(request, response)
+    body = _invoke(request, response)
     parsed = json.loads(body)
 
     assert parsed["properties"]["parameters"]["2t"]["raw_units"] == "K"
@@ -208,7 +253,7 @@ def test_native_unit_preservation(monkeypatch, valid_response_payload):
 
 
 def test_invalid_ecmwf_response_handling(monkeypatch):
-    def raise_value(_latitude, _longitude):
+    def raise_value(*, latitude, longitude):
         raise ValueError("Missing ECMWF parameters")
 
     monkeypatch.setattr("api.ecmwf.fetch_ecmwf", raise_value)
@@ -216,7 +261,7 @@ def test_invalid_ecmwf_response_handling(monkeypatch):
     request = DummyRequest(query={"latitude": "45", "longitude": "12.5"})
     response = DummyResponse()
 
-    body = handler(request, response)
+    body = _invoke(request, response)
     parsed = json.loads(body)
 
     assert response.status == 502
@@ -240,7 +285,7 @@ def test_cors_is_narrow(monkeypatch, valid_response_payload, origin, expected_al
     )
     response = DummyResponse()
 
-    handler(request, response)
+    _invoke(request, response)
 
     if expected_allow is None:
         assert "Access-Control-Allow-Origin" not in response.headers

@@ -30,3 +30,33 @@
 #loadBtn {
   margin-top: 8px;
 }
+
+.ecmwf-summary,
+.ecmwf-parameters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin: 14px 0;
+}
+
+.ecmwf-summary>div,
+.ecmwf-parameter {
+  padding: 12px;
+  border: 1px solid #e0e7ee;
+  border-radius: 12px;
+}
+
+.ecmwf-summary span,
+.ecmwf-parameter span {
+  display: block;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+
+.ecmwf-parameter h3 {
+  margin: 0 0 10px;
+}
+
+#ecmwfRawDetails {
+  margin-top: 14px;
+}

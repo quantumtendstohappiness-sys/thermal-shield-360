@@ -80,7 +80,23 @@
 </section>
 
   <section class="card">
-    <h2>2. Current / selected-hour environmental inputs</h2>
+    <h2>2. ECMWF research-data display</h2>
+    <p id="ecmwfStatus">ECMWF forecast data will appear here after a location is loaded.</p>
+    <div id="ecmwfSummary" class="ecmwf-summary" hidden></div>
+    <div id="ecmwfParameters" class="ecmwf-parameters"></div>
+    <details id="ecmwfRawDetails" hidden>
+      <summary>Raw ECMWF response</summary>
+      <pre id="ecmwfRaw"></pre>
+    </details>
+    <p class="note">
+      ECMWF values are shown as received from the research endpoint. Native units,
+      forecast metadata, nearest-grid metadata, provenance and missing values are
+      not normalized or used in HTSI.
+    </p>
+  </section>
+
+  <section class="card">
+    <h2>3. Current / selected-hour environmental inputs</h2>
     <div class="grid metrics">
       <label>Air temperature (°C) <input id="temp" type="number" step="0.1"></label>
       <label>Relative humidity (%) <input id="rh" type="number" step="0.1"></label>
@@ -102,7 +118,7 @@
   </section>
 
   <section class="card">
-    <h2>3. Thermal index layer</h2>
+    <h2>4. Thermal index layer</h2>
     <div class="grid results">
       <div><b>Heat Index</b><span id="hi">—</span></div>
       <div><b>WBGT proxy*</b><span id="wbgt">—</span></div>
@@ -115,13 +131,13 @@
   </section>
 
   <section class="card">
-    <h2>4. Research-signal layer</h2>
+    <h2>5. Research-signal layer</h2>
     <div id="ensoBox">Loading local NOAA/ENSO evidence file…</div>
     <p><b>How it is used:</b> ENSO/IO/SST/satellite evidence is stored as a climate-regime context signal. It does not replace local temperature, humidity, wind and radiation and is not multiplied directly into HTSI.</p>
   </section>
 
   <section class="card">
-    <h2>5. Formula / audit trail</h2>
+    <h2>6. Formula / audit trail</h2>
     <pre id="formula"></pre>
     <p id="sourceLog">Sources will appear here after calculation.</p>
   </section>

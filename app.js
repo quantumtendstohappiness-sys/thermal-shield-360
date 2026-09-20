@@ -48,6 +48,8 @@ async function loadWeather() {
       );
     }
 
+    void loadECMWF(latitude, longitude);
+
     function formatUTCDate(date) {
       return [
         date.getUTCFullYear(),
@@ -200,6 +202,156 @@ async function loadWeather() {
   } catch (e) {
     $("status").textContent =
       `NASA POWER load failed: ${e.message}`;
+  }
+}
+
+function displayValue(value) {
+  if (value === null || value === undefined) {
+    return "Missing (not supplied)";
+  }
+
+  return String(value);
+}
+
+function addECMWFField(container, label, value) {
+  const field = document.createElement("div");
+  const heading = document.createElement("b");
+  const content = document.createElement("span");
+
+  heading.textContent = label;
+  content.textContent = displayValue(value);
+  field.append(heading, content);
+  container.appendChild(field);
+}
+
+function renderECMWF(data) {
+  const properties = data.properties || {};
+  const provenance = data.provenance || {};
+  const quality = data.quality || {};
+  const summary = $("ecmwfSummary");
+  const parametersBox = $("ecmwfParameters");
+
+  summary.replaceChildren();
+  parametersBox.replaceChildren();
+
+  addECMWFField(summary, "Source", properties.source);
+  addECMWFField(summary, "Model", properties.model);
+  addECMWFField(summary, "Resolution", properties.resolution);
+  addECMWFField(summary, "Status", properties.status);
+  addECMWFField(
+    summary,
+    "Requested coordinate",
+    properties.requested_coordinate
+      ? `${displayValue(properties.requested_coordinate.latitude)}, ${displayValue(properties.requested_coordinate.longitude)}`
+      : null
+  );
+  addECMWFField(
+    summary,
+    "Forecast initialization (UTC)",
+    properties.forecast_initialization_time_utc
+  );
+  addECMWFField(
+    summary,
+    "Forecast valid time (UTC)",
+    properties.forecast_valid_time_utc
+  );
+  addECMWFField(
+    summary,
+    "Requested forecast step",
+    properties.forecast_step_requested
+  );
+  addECMWFField(summary, "Retrieved (UTC)", provenance.retrieved_at);
+  addECMWFField(summary, "Quality", quality.quality_flag);
+
+  const parameters = properties.parameters;
+  if (!parameters || typeof parameters !== "object") {
+    parametersBox.textContent = "No ECMWF parameter values were supplied.";
+  } else {
+    Object.entries(parameters).forEach(([name, parameter]) => {
+      const card = document.createElement("article");
+      card.className = "ecmwf-parameter";
+      const title = document.createElement("h3");
+      title.textContent = name;
+      card.appendChild(title);
+
+      if (!parameter || typeof parameter !== "object") {
+        addECMWFField(card, "Raw value", parameter);
+      } else {
+        addECMWFField(card, "Raw value", parameter.raw_value);
+        addECMWFField(card, "Native units", parameter.raw_units);
+        addECMWFField(
+          card,
+          "Forecast initialization (UTC)",
+          parameter.forecast_initialization_time_utc
+        );
+        addECMWFField(card, "Valid time (UTC)", parameter.valid_time_utc);
+        addECMWFField(card, "Forecast step", parameter.forecast_step);
+        addECMWFField(card, "GRIB step range", parameter.step_range);
+
+        const gridPoint = parameter.nearest_grid_point;
+        addECMWFField(
+          card,
+          "Nearest grid point",
+          gridPoint
+            ? `${displayValue(gridPoint.latitude)}, ${displayValue(gridPoint.longitude)}`
+            : null
+        );
+        addECMWFField(
+          card,
+          "Nearest grid flat index",
+          gridPoint?.flat_index
+        );
+      }
+
+      parametersBox.appendChild(card);
+    });
+  }
+
+  $("ecmwfRaw").textContent = JSON.stringify(data, null, 2);
+  $("ecmwfSummary").hidden = false;
+  $("ecmwfRawDetails").hidden = false;
+}
+
+async function loadECMWF(latitude, longitude) {
+  const status = $("ecmwfStatus");
+  status.textContent =
+    `Loading ECMWF research data for ${latitude}, ${longitude}…`;
+  $("ecmwfSummary").hidden = true;
+  $("ecmwfRawDetails").hidden = true;
+  $("ecmwfParameters").replaceChildren();
+
+  try {
+    const ecmwfUrl =
+      "https://thermal-shield-360.vercel.app/api/ecmwf" +
+      `?latitude=${encodeURIComponent(latitude)}` +
+      `&longitude=${encodeURIComponent(longitude)}`;
+    const response = await fetch(ecmwfUrl);
+
+    if (!response.ok) {
+      throw new Error(`ECMWF HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const properties = data?.properties;
+
+    if (
+      !data ||
+      data.type !== "Feature" ||
+      !properties ||
+      properties.status !== "raw/not normalized" ||
+      data.quality?.status !== "raw/not normalized"
+    ) {
+      throw new Error(
+        "ECMWF returned a payload that is not marked raw/not normalized."
+      );
+    }
+
+    renderECMWF(data);
+    status.textContent =
+      "Loaded ECMWF Open Data forecast. Values remain raw and separate from HTSI.";
+  } catch (error) {
+    status.textContent =
+      `ECMWF research-data load failed: ${error.message}`;
   }
 }
   
