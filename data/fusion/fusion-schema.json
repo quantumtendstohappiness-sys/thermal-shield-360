@@ -1,0 +1,593 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://thermal-shield-360.example/schemas/fusion-schema.json",
+  "title": "Thermal Shield 360 Multi-Source Environmental Data Fusion Contract",
+  "description": "Source-agnostic contract for normalized environmental fusion input and variable-specific fusion output. This schema does not prescribe source weights, averaging, scientific thresholds, or HTSI integration.",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "fusion_input",
+    "fusion_output"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "string"
+    },
+    "fusion_input": {
+      "$ref": "#/$defs/fusionInput"
+    },
+    "fusion_output": {
+      "$ref": "#/$defs/fusionOutput"
+    }
+  },
+  "$defs": {
+    "dateTimeOrNull": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date-time"
+    },
+    "location": {
+      "type": "object",
+      "required": [
+        "latitude",
+        "longitude"
+      ],
+      "properties": {
+        "latitude": {
+          "type": "number",
+          "minimum": -90,
+          "maximum": 90
+        },
+        "longitude": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "sourceGrid": {
+      "type": "object",
+      "properties": {
+        "grid_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "latitude": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": -90,
+          "maximum": 90
+        },
+        "longitude": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": -180,
+          "maximum": 180
+        },
+        "resolution": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cell_reference": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "selection_method": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "distance_from_location": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "forecastTiming": {
+      "type": "object",
+      "properties": {
+        "initialization_time": {
+          "$ref": "#/$defs/dateTimeOrNull"
+        },
+        "valid_time": {
+          "$ref": "#/$defs/dateTimeOrNull"
+        },
+        "step": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "step_unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "required": [
+        "status"
+      ],
+      "properties": {
+        "status": {
+          "type": "string"
+        },
+        "flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "normalizedRecord": {
+      "type": "object",
+      "required": [
+        "source_id",
+        "source_name",
+        "variable",
+        "value",
+        "unit",
+        "timestamp",
+        "location",
+        "data_type",
+        "quality",
+        "retrieved_at"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string"
+        },
+        "source_name": {
+          "type": "string"
+        },
+        "variable": {
+          "type": "string"
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "location": {
+          "$ref": "#/$defs/location"
+        },
+        "data_type": {
+          "type": "string",
+          "enum": [
+            "observation",
+            "reanalysis",
+            "forecast",
+            "satellite",
+            "derived"
+          ]
+        },
+        "quality": {
+          "$ref": "#/$defs/quality"
+        },
+        "retrieved_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "forecast": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/forecastTiming"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_grid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sourceGrid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "registeredSource": {
+      "type": "object",
+      "required": [
+        "source_id",
+        "source_name"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string"
+        },
+        "source_name": {
+          "type": "string"
+        },
+        "available": {
+          "type": "boolean"
+        },
+        "unavailable_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "fusionInput": {
+      "type": "object",
+      "required": [
+        "records"
+      ],
+      "properties": {
+        "registered_sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/registeredSource"
+          }
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/normalizedRecord"
+          }
+        }
+      }
+    },
+    "sourceValue": {
+      "type": "object",
+      "required": [
+        "source_id",
+        "source_name",
+        "value",
+        "unit",
+        "data_type"
+      ],
+      "properties": {
+        "source_id": {
+          "type": "string"
+        },
+        "source_name": {
+          "type": "string"
+        },
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "data_type": {
+          "type": "string"
+        },
+        "timestamp": {
+          "$ref": "#/$defs/dateTimeOrNull"
+        },
+        "quality": {
+          "$ref": "#/$defs/quality"
+        },
+        "forecast": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/forecastTiming"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source_grid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/sourceGrid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "fusionResult": {
+      "type": "object",
+      "required": [
+        "canonical_variable",
+        "unified_value",
+        "unit",
+        "contributing_sources",
+        "source_values",
+        "alignment",
+        "quality_assessment",
+        "disagreement",
+        "confidence",
+        "methodology",
+        "missing_fields",
+        "unavailable_sources"
+      ],
+      "properties": {
+        "canonical_variable": {
+          "type": "string"
+        },
+        "unified_value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contributing_sources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "source_values": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sourceValue"
+          }
+        },
+        "alignment": {
+          "type": "object",
+          "required": [
+            "status",
+            "temporal",
+            "spatial"
+          ],
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "temporal": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string"
+                },
+                "target_timestamp": {
+                  "$ref": "#/$defs/dateTimeOrNull"
+                },
+                "tolerance": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "metadata": {
+                  "type": "object"
+                }
+              }
+            },
+            "spatial": {
+              "type": "object",
+              "properties": {
+                "status": {
+                  "type": "string"
+                },
+                "target_location": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/location"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "metadata": {
+                  "type": "object"
+                }
+              }
+            },
+            "metadata": {
+              "type": "object"
+            }
+          }
+        },
+        "quality_assessment": {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "flags": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "notes": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "disagreement": {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "details": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "pairwise": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "source_a": {
+                    "type": "string"
+                  },
+                  "source_b": {
+                    "type": "string"
+                  },
+                  "difference": {
+                    "type": [
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "confidence": {
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "type": "string"
+            },
+            "score": {
+              "type": [
+                "number",
+                "null"
+              ]
+            },
+            "basis": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        },
+        "methodology": {
+          "type": "object",
+          "required": [
+            "description"
+          ],
+          "properties": {
+            "description": {
+              "type": "string"
+            },
+            "method": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "alignment_rules": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "missing_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "unavailable_sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "source_id"
+            ],
+            "properties": {
+              "source_id": {
+                "type": "string"
+              },
+              "reason": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "fusionOutput": {
+      "type": "object",
+      "required": [
+        "results"
+      ],
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/fusionResult"
+          }
+        }
+      }
+    }
+  }
+}
