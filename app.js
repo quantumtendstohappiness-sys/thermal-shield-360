@@ -391,6 +391,70 @@ function normalizeNASAObservation({
   });
 }
 
+function normalizeLiveNASARecord(data) {
+  const properties = data?.properties;
+  const coordinates = data?.geometry?.coordinates;
+  const observationTimestamp = String(properties?.observation_timestamp_utc || "");
+  const match = observationTimestamp.match(
+    /^(\d{4})(\d{2})(\d{2})(\d{2})$/
+  );
+
+  if (
+    data?.type !== "Feature" ||
+    !properties ||
+    !Array.isArray(coordinates) ||
+    coordinates.length < 2 ||
+    !match
+  ) {
+    throw new Error("Verified NASA POWER record is malformed.");
+  }
+
+  return window.normalizeNASARecord({
+    location: {
+      name: "NASA POWER synced point",
+      latitude: coordinates[1],
+      longitude: coordinates[0]
+    },
+    time: {
+      timestamp: nasaTimestampToISO(observationTimestamp),
+      timezone: properties.provenance?.time_standard || "UTC"
+    },
+    environment: properties.environment,
+    provenance: {
+      source_id: properties.source_id,
+      source_name: properties.provenance?.provider || properties.source,
+      data_type: properties.data_type,
+      variables: properties.provenance?.variables,
+      retrieved_at: properties.retrieved_at
+    },
+    quality: properties.quality
+  });
+}
+
+async function loadNASAResearchDisplay() {
+  const status = $("nasaResearchStatus");
+
+  try {
+    const response = await fetch("data/live/nasa-power-current.json", {
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error(`NASA POWER synced record HTTP ${response.status}`);
+    }
+
+    const data = await response.json();
+    const normalized = normalizeLiveNASARecord(data);
+    renderNASAResearch(data, normalized);
+    status.textContent =
+      `Loaded verified NASA POWER observation ` +
+      `${data.properties.observation_timestamp_utc} UTC.`;
+  } catch (error) {
+    status.textContent =
+      `NASA POWER research-data load failed: ${error.message}`;
+  }
+}
+
 function clamp(x, a, b) {
   return Math.max(a, Math.min(b, x));
 }
@@ -444,6 +508,7 @@ async function loadWeather() {
       );
     }
 
+    void loadNASAResearchDisplay();
     void loadECMWF(latitude, longitude);
 
     function formatUTCDate(date) {
@@ -578,13 +643,6 @@ async function loadWeather() {
       timestamp: latestTimestamp,
       parameterData
     });
-    renderNASAResearch(
-      data,
-      thermalShieldFusionSources.nasa,
-      latitude,
-      longitude,
-      latestTimestamp
-    );
     updateThermalShieldFusion();
 
     $("lat").value = latitude;
@@ -646,9 +704,9 @@ function nasaCoordinateValue(coordinates) {
     .join(", ");
 }
 
-function renderNASAResearch(data, normalized, requestedLatitude, requestedLongitude, timestamp) {
+function renderNASAResearch(data, normalized) {
   const properties = data?.properties || {};
-  const parameterData = properties.parameter;
+  const environment = properties.environment || {};
   const provenance = normalized?.provenance || {};
   const quality = normalized?.quality || {};
   const summary = $("nasaResearchSummary");
@@ -656,54 +714,62 @@ function renderNASAResearch(data, normalized, requestedLatitude, requestedLongit
   const lineages = Array.isArray(provenance.variables)
     ? provenance.variables
     : [];
-  const lineagesBySourceVariable = new Map(
-    lineages.map(lineage => [lineage.source_variable, lineage])
-  );
+  const nativeValues = {
+    T2M: environment.air_temperature_c,
+    RH2M: environment.relative_humidity_pct,
+    WS10M: environment.wind_speed_ms,
+    T2MWET: environment.nasa_wet_bulb_related_c,
+    T2MDEW: environment.dew_point_c,
+    ALLSKY_SFC_SW_DWN: environment.solar_radiation_wm2
+  };
 
   summary.replaceChildren();
   parametersBox.replaceChildren();
 
-  addNASAField(summary, "Source", "NASA POWER");
-  addNASAField(summary, "Observation timestamp (UTC)", timestamp);
+  addNASAField(summary, "Source", properties.source);
+  addNASAField(summary, "Source ID", properties.source_id);
+  addNASAField(summary, "Observation timestamp (UTC)", properties.observation_timestamp_utc);
+  addNASAField(summary, "Normalized timestamp (UTC)", normalized?.time?.timestamp);
   addNASAField(
     summary,
-    "Requested coordinate",
-    `${requestedLatitude}, ${requestedLongitude}`
-  );
-  addNASAField(
-    summary,
-    "Observation coordinate",
+    "Coordinates",
     nasaCoordinateValue(data?.geometry?.coordinates)
   );
-  addNASAField(summary, "Data type", provenance.data_type);
-  addNASAField(summary, "Status", provenance.data_status);
+  addNASAField(summary, "Data type", properties.data_type);
   addNASAField(summary, "Quality", quality.quality_flag);
-  addNASAField(summary, "Retrieved (UTC)", provenance.retrieved_at);
-  addNASAField(summary, "Available parameters", parameterData
-    ? Object.keys(parameterData).join(", ")
-    : null);
-  addNASAField(summary, "Provenance", provenance.source_name);
+  addNASAField(summary, "Retrieved (UTC)", properties.retrieved_at);
+  addNASAField(
+    summary,
+    "Available parameters",
+    Object.entries(environment)
+      .filter(([, value]) => value !== null && value !== undefined)
+      .map(([name]) => name)
+      .join(", ")
+  );
+  addNASAField(summary, "Missing fields", quality.missing_fields?.join(", "));
+  addNASAField(summary, "Provider provenance", provenance.source_name);
+  addNASAField(summary, "Variable provenance", properties.provenance?.variables);
 
-  if (!parameterData || typeof parameterData !== "object") {
-    parametersBox.textContent = "No NASA POWER parameter values were supplied.";
-  } else {
-    Object.entries(parameterData).forEach(([name, values]) => {
-      const card = document.createElement("article");
-      card.className = "nasa-parameter";
-      const title = document.createElement("h3");
-      title.textContent = name;
-      card.appendChild(title);
-      const value = values?.[timestamp];
-      const lineage = lineagesBySourceVariable.get(name);
-      addNASAField(card, "Native value", value);
-      addNASAField(card, "Native units", lineage?.native_unit);
-      addNASAField(card, "Normalized value", lineage?.normalized_value);
-      addNASAField(card, "Normalized units", lineage?.normalized_unit);
-      addNASAField(card, "Timestamp (UTC)", lineage?.source_timestamp || timestamp);
-      addNASAField(card, "Status", lineage?.status);
-      parametersBox.appendChild(card);
-    });
-  }
+  lineages.forEach(lineage => {
+    const card = document.createElement("article");
+    card.className = "nasa-parameter";
+    const title = document.createElement("h3");
+    title.textContent = lineage.source_variable || lineage.canonical_variable;
+    card.appendChild(title);
+    addNASAField(
+      card,
+      "Native value",
+      nativeValues[lineage.source_variable] ?? lineage.native_value
+    );
+    addNASAField(card, "Native units", lineage.native_unit);
+    addNASAField(card, "Normalized value", lineage.normalized_value);
+    addNASAField(card, "Normalized units", lineage.normalized_unit);
+    addNASAField(card, "Timestamp (UTC)", lineage.source_timestamp);
+    addNASAField(card, "Status", lineage.status);
+    addNASAField(card, "Transformation", lineage.transformation);
+    addNASAField(card, "Raw record reference", lineage.raw_record_ref);
+    parametersBox.appendChild(card);
+  });
 
   $("nasaResearchRaw").textContent = JSON.stringify(data, null, 2);
   summary.hidden = false;
