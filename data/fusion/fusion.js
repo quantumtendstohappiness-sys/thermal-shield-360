@@ -1,5 +1,9 @@
 "use strict";
 
+const { calculateWeights } = require("./weighting");
+const { assessConfidence } = require("./confidence");
+const { analyzeDisagreement } = require("./disagreement");
+
 const MISSING_VALUE = "missing_value";
 
 function isObject(value) {
@@ -100,38 +104,24 @@ function pairIsCompatible(alignment) {
     alignment?.metadata?.spatial?.status === "aligned";
 }
 
-function disagreement(sourceValues) {
-  const pairwise = [];
-  for (let i = 0; i < sourceValues.length; i += 1) {
-    for (let j = i + 1; j < sourceValues.length; j += 1) {
-      const a = sourceValues[i];
-      const b = sourceValues[j];
-      pairwise.push({
-        source_a: a.source_id,
-        source_b: b.source_id,
-        difference: isFiniteNumber(a.value) && isFiniteNumber(b.value)
-          ? Math.abs(a.value - b.value)
-          : null,
-        status: a.value === b.value ? "agreement" : "difference_recorded"
-      });
-    }
-  }
-  return {
-    status: pairwise.some((item) => item.status === "difference_recorded")
-      ? "difference_recorded"
-      : "agreement",
-    details: "Differences are retained; no disagreement threshold is applied.",
-    pairwise
-  };
-}
-
-function makeResult(variable, values, qualityResults, alignments, status, reason) {
+function makeResult(
+  variable,
+  values,
+  qualityResults,
+  alignments,
+  status,
+  reason,
+  weighting,
+  disagreementResult,
+  confidenceResult
+) {
   const units = values.map((item) => item.unit).filter((unit) => unit != null);
   const unit = units.length > 0 ? units[0] : null;
   const unifiedValue = status === "single_source"
     ? values[0]?.value ?? null
     : status === "provisional_consensus"
-      ? values.reduce((sum, item) => sum + item.value, 0) / values.length
+      ? values.reduce((sum, item) =>
+        sum + item.value * item.weighting.normalized_weight, 0)
       : null;
 
   return {
@@ -151,22 +141,28 @@ function makeResult(variable, values, qualityResults, alignments, status, reason
       status: values.length > 0 ? "eligible_values_only" : "unavailable",
       results: values.map((item) => item.quality_result ?? null)
     },
-    disagreement: disagreement(values),
-    confidence: {
+    disagreement: disagreementResult ?? {
+      variable,
+      status: "not_calculated",
+      reasons: []
+    },
+    confidence: confidenceResult ?? {
       status: "not_calculated",
       score: null,
       basis: null
     },
+    weighting: weighting ?? null,
     methodology: {
       description: status === "provisional_consensus"
-        ? "Unweighted arithmetic mean of eligible values after exact variable/unit matching and temporal/spatial alignment."
+        ? "Variable-specific weighted consensus of eligible values after exact variable/unit matching and temporal/spatial alignment."
         : "No value was inferred. Eligible source values and layer results are preserved.",
       method: status,
       alignment_rules: [
         "Canonical variable and normalized unit must match exactly.",
         "Every contributing value must pass the quality gate.",
         "Multiple values require aligned temporal and spatial pairwise results.",
-        "No source weights, HTSI, FDI, or final confidence calculation is applied."
+        "Source weights, disagreement, and confidence are retained from their respective fusion layers.",
+        "No HTSI integration is applied."
       ]
     },
     missing_fields: reason ? [reason] : [],
@@ -176,8 +172,24 @@ function makeResult(variable, values, qualityResults, alignments, status, reason
   };
 }
 
-function fuseRecords(records, alignmentResults = [], qualityResults = []) {
+function fuseRecords(records, alignmentResults = [], qualityResults = [], options = {}) {
   if (!Array.isArray(records)) throw new TypeError("Normalized source records must be an array.");
+
+  const weightingResults = calculateWeights(records, {
+    ...(options.weighting ?? {}),
+    alignments: alignmentResults
+  });
+  const disagreementResults = analyzeDisagreement(records, {
+    ...(options.disagreement ?? {}),
+    qualityResults
+  });
+  const confidenceResults = assessConfidence(records, {
+    ...(options.confidence ?? {}),
+    alignments: alignmentResults,
+    weightingResults
+  });
+  const variableResult = (results, variable) =>
+    results.variables.find((item) => item.variable === variable) ?? null;
 
   const groups = new Map();
   records.forEach((record, index) => {
@@ -194,13 +206,27 @@ function fuseRecords(records, alignmentResults = [], qualityResults = []) {
           qualityStatus(quality, record) === "eligible" &&
           isFiniteNumber(valueFor(record, variable))
         );
-        const sourceValues = eligible.map(({ record, quality }) => sourceValue(record, quality));
+        const weighting = variableResult(weightingResults, variable);
+        const disagreement = variableResult(disagreementResults, variable);
+        const confidence = variableResult(confidenceResults, variable);
+        const weightedSources = new Map(
+          (weighting?.sources ?? []).map((source) => [source.source_id, source])
+        );
+        const sourceValues = eligible.map(({ record, quality }) => {
+          const value = sourceValue(record, quality);
+          return {
+            ...value,
+            weighting: weightedSources.get(value.source_id) ?? null
+          };
+        });
         if (eligible.length === 0) {
           return makeResult(variable, entries.map(({ record, quality }) => sourceValue(record, quality)),
-            qualityResults, [], "unavailable", "No eligible non-missing value passed the quality gate.");
+            qualityResults, [], "unavailable", "No eligible non-missing value passed the quality gate.",
+            weighting, disagreement, confidence);
         }
         if (eligible.length === 1) {
-          return makeResult(variable, sourceValues, qualityResults, [], "single_source", null);
+          return makeResult(variable, sourceValues, qualityResults, [], "single_source", null,
+            weighting, disagreement, null);
         }
 
         const alignments = [];
@@ -215,9 +241,20 @@ function fuseRecords(records, alignmentResults = [], qualityResults = []) {
         const sameUnit = sourceValues.every((item) => item.unit === sourceValues[0].unit);
         if (!sameUnit || alignments.some((alignment) => !pairIsCompatible(alignment))) {
           return makeResult(variable, sourceValues, qualityResults, alignments, "unavailable",
-            !sameUnit ? "Eligible values have incompatible units." : "Eligible values are not temporally and spatially compatible.");
+            !sameUnit ? "Eligible values have incompatible units." : "Eligible values are not temporally and spatially compatible.",
+            weighting, disagreement, confidence);
         }
-        return makeResult(variable, sourceValues, qualityResults, alignments, "provisional_consensus", null);
+        const weightedValues = sourceValues.filter((value) =>
+          value.weighting?.eligible &&
+          isFiniteNumber(value.weighting.normalized_weight)
+        );
+        if (weightedValues.length !== sourceValues.length) {
+          return makeResult(variable, sourceValues, qualityResults, alignments, "unavailable",
+            "One or more eligible values did not receive an eligible source weight.",
+            weighting, disagreement, confidence);
+        }
+        return makeResult(variable, weightedValues, qualityResults, alignments,
+          "provisional_consensus", null, weighting, disagreement, confidence);
       })
   };
 }

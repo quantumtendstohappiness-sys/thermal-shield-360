@@ -48,6 +48,7 @@ function testSingleSource() {
   assert.equal(result.status, "single_source");
   assert.equal(result.unified_value, 25);
   assert.deepEqual(result.contributing_sources, ["a"]);
+  assert.equal(result.confidence.status, "not_calculated");
 }
 
 function testCompatibleTwoSourceConsensus() {
@@ -57,7 +58,11 @@ function testCompatibleTwoSourceConsensus() {
   assert.equal(result.status, "provisional_consensus");
   assert.equal(result.unified_value, 26);
   assert.equal(result.source_values.length, 2);
-  assert.equal(result.confidence.status, "not_calculated");
+  assert.equal(result.weighting.variable, "air_temperature_c");
+  assert.deepEqual(result.weighting.eligible_source_ids, ["a", "b"]);
+  assert.equal(result.disagreement.status, "disagreement");
+  assert.equal(result.confidence.status, "assessed");
+  assert.ok(result.confidence.reasons.length === 0);
 }
 
 function testIncompatibleTime() {
