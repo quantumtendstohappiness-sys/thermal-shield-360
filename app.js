@@ -1,5 +1,291 @@
 const $ = id => document.getElementById(id);
 
+let thermalShieldFusionResult = null;
+const thermalShieldFusionSources = {
+  nasa: null,
+  ecmwf: null
+};
+
+function nasaTimestampToISO(timestamp) {
+  const match = String(timestamp).match(
+    /^(\d{4})(\d{2})(\d{2})(\d{2})$/
+  );
+
+  if (!match) {
+    throw new Error("NASA POWER returned an invalid observation timestamp.");
+  }
+
+  return `${match[1]}-${match[2]}-${match[3]}T${match[4]}:00:00Z`;
+}
+
+function normalizedVariableNames(normalized) {
+  return normalized.provenance.variables.map(
+    entry => entry.canonical_variable
+  );
+}
+
+function normalizedVariableRecord(normalized, variable) {
+  const lineage = normalized.provenance.variables.find(
+    entry => entry.canonical_variable === variable
+  );
+
+  if (!lineage) {
+    throw new Error(
+      `Normalized source is missing lineage for ${variable}.`
+    );
+  }
+
+  return {
+    source_id: normalized.provenance.source_id,
+    source_name: normalized.provenance.source_name,
+    variable,
+    value: normalized.environment[variable],
+    unit: lineage.normalized_unit,
+    timestamp: normalized.time.timestamp,
+    retrieved_at: normalized.provenance.retrieved_at,
+    location: normalized.location,
+    data_type: normalized.provenance.data_type,
+    quality_flag: normalized.quality.quality_flag,
+    provenance: {
+      source_id: normalized.provenance.source_id,
+      source_name: normalized.provenance.source_name,
+      data_type: normalized.provenance.data_type,
+      retrieved_at: normalized.provenance.retrieved_at,
+      variables: [lineage]
+    },
+    quality: normalized.quality
+  };
+}
+
+function normalizedHasVariable(normalized, variable) {
+  return normalizedVariableNames(normalized).includes(variable);
+}
+
+function appendFusionField(container, label, value) {
+  const field = document.createElement("div");
+  const heading = document.createElement("b");
+  const content = document.createElement("span");
+  heading.textContent = label;
+  content.textContent = displayValue(value);
+  field.append(heading, content);
+  container.appendChild(field);
+}
+
+function appendPresentFusionField(container, label, value) {
+  if (value === null || value === undefined || value === "") return;
+  appendFusionField(container, label, value);
+}
+
+function fusionStatusLabel(status) {
+  if (status === "single_source") return "Single-source";
+  if (status === "provisional_consensus") return "Fused / consensus";
+  if (status === "unavailable") return "Unavailable";
+  return status || "Unavailable";
+}
+
+function fusionStatusClass(status) {
+  if (status === "single_source") return "single-source";
+  if (status === "provisional_consensus") return "consensus";
+  return "unavailable";
+}
+
+function appendFusionList(container, label, values) {
+  if (!Array.isArray(values) || values.length === 0) return;
+  appendFusionField(container, label, values.join(", "));
+}
+
+function appendFusionAlignment(container, alignment) {
+  if (!alignment || typeof alignment !== "object") return;
+  if (alignment.status) {
+    appendFusionField(container, "Overall alignment", alignment.status);
+  }
+
+  ["temporal", "spatial"].forEach(type => {
+    const values = Array.isArray(alignment[type])
+      ? alignment[type]
+      : [alignment[type]];
+    const statuses = values
+      .filter(value => value && typeof value === "object" && value.status)
+      .map(value => value.status);
+    appendFusionList(container, `${type[0].toUpperCase()}${type.slice(1)} alignment`, statuses);
+  });
+}
+
+function renderThermalShieldFusion(result) {
+  const status = $("fusionStatus");
+  const resultsBox = $("fusionResults");
+  resultsBox.replaceChildren();
+
+  if (!result || !Array.isArray(result.results) || result.results.length === 0) {
+    status.textContent = "No fusion result is available.";
+    return;
+  }
+
+  status.textContent = `${result.results.length} fusion result${
+    result.results.length === 1 ? "" : "s"
+  } available.`;
+
+  result.results.forEach(fusion => {
+    const card = document.createElement("article");
+    card.className = `fusion-result ${fusionStatusClass(fusion.status)}`;
+
+    const heading = document.createElement("h3");
+    heading.textContent = fusion.canonical_variable || "Unnamed variable";
+    card.appendChild(heading);
+
+    const statusBadge = document.createElement("span");
+    statusBadge.className = "fusion-status";
+    statusBadge.textContent = fusionStatusLabel(fusion.status);
+    card.appendChild(statusBadge);
+
+    const fields = document.createElement("div");
+    fields.className = "fusion-fields";
+    appendFusionField(fields, "Unified value", fusion.unified_value);
+    appendFusionField(fields, "Unit", fusion.unit);
+    appendFusionList(fields, "Contributing source IDs", fusion.contributing_sources);
+    appendFusionAlignment(fields, fusion.alignment);
+
+    if (fusion.confidence && typeof fusion.confidence === "object") {
+      appendPresentFusionField(fields, "Confidence status", fusion.confidence.status);
+      if (fusion.confidence.score !== null && fusion.confidence.score !== undefined) {
+        appendFusionField(fields, "Confidence score", fusion.confidence.score);
+      }
+      appendPresentFusionField(fields, "Confidence basis", fusion.confidence.basis);
+      appendPresentFusionField(fields, "Confidence reason", fusion.confidence.reason);
+    }
+
+    if (fusion.disagreement && typeof fusion.disagreement === "object") {
+      appendPresentFusionField(fields, "Disagreement", fusion.disagreement.status);
+      appendPresentFusionField(fields, "Disagreement details", fusion.disagreement.details);
+      if (Array.isArray(fusion.disagreement.pairwise)) {
+        const pairwise = fusion.disagreement.pairwise
+          .map(pair => {
+            if (!pair || typeof pair !== "object") return null;
+            const sources = [pair.source_a, pair.source_b].filter(Boolean).join(" / ");
+            const difference = pair.difference === null || pair.difference === undefined
+              ? null
+              : `difference ${pair.difference}`;
+            return [sources, difference, pair.status].filter(Boolean).join(": ");
+          })
+          .filter(Boolean);
+        appendFusionList(fields, "Pairwise disagreement", pairwise);
+      }
+      appendFusionList(fields, "Disagreement reasons", fusion.disagreement.reasons);
+    }
+
+    appendPresentFusionField(fields, "Quality status", fusion.quality_assessment?.status);
+    appendFusionList(fields, "Missing fields", fusion.missing_fields);
+    if (Array.isArray(fusion.unavailable_sources) && fusion.unavailable_sources.length > 0) {
+      const unavailable = fusion.unavailable_sources
+        .map(source => [source?.source_id, source?.reason].filter(Boolean).join(": "))
+        .filter(Boolean);
+      appendFusionList(fields, "Unavailable sources", unavailable);
+    }
+
+    card.appendChild(fields);
+    resultsBox.appendChild(card);
+  });
+}
+
+function updateThermalShieldFusion() {
+  const sources = Object.values(thermalShieldFusionSources)
+    .filter(Boolean);
+
+  if (sources.length === 0) {
+    thermalShieldFusionResult = null;
+    window.thermalShieldFusionResult = null;
+    renderThermalShieldFusion(null);
+    return;
+  }
+
+  const variables = [...new Set(
+    sources.flatMap(normalizedVariableNames)
+  )];
+  const records = variables.flatMap(variable =>
+    sources
+      .filter(source => normalizedHasVariable(source, variable))
+      .map(source => normalizedVariableRecord(source, variable))
+  );
+  const quality = window.ThermalShieldFusionQualityGate.evaluateRecords(
+    records
+  );
+  const alignments = [];
+
+  for (let i = 0; i < records.length; i += 1) {
+    for (let j = i + 1; j < records.length; j += 1) {
+      if (records[i].variable === records[j].variable) {
+        alignments.push(
+          window.ThermalShieldAlignment.alignRecords(
+            records[i],
+            records[j]
+          )
+        );
+      }
+    }
+  }
+
+  thermalShieldFusionResult = window.ThermalShieldFusion.fuseRecords(
+    records,
+    alignments,
+    quality
+  );
+  window.thermalShieldFusionResult = thermalShieldFusionResult;
+  renderThermalShieldFusion(thermalShieldFusionResult);
+}
+
+function normalizeNASAObservation({
+  latitude,
+  longitude,
+  timestamp,
+  parameterData
+}) {
+  const normalizedValue = value =>
+    value === -999 || value === -999.0 || !Number.isFinite(value)
+      ? null
+      : value;
+  const environment = {
+    air_temperature_c: normalizedValue(parameterData.T2M[timestamp]),
+    relative_humidity_pct: normalizedValue(parameterData.RH2M[timestamp]),
+    wind_speed_ms: normalizedValue(parameterData.WS10M[timestamp]),
+    solar_radiation_wm2: normalizedValue(
+      parameterData.ALLSKY_SFC_SW_DWN?.[timestamp]
+    ),
+    nasa_wet_bulb_related_c: normalizedValue(
+      parameterData.T2MWET?.[timestamp]
+    ),
+    dew_point_c: normalizedValue(parameterData.T2MDEW?.[timestamp])
+  };
+  const missingFields = Object.entries(environment)
+    .filter(([, value]) => value === null)
+    .map(([name]) => `environment.${name}`);
+
+  return window.normalizeNASARecord({
+    location: {
+      name: "NASA POWER point",
+      latitude,
+      longitude
+    },
+    time: {
+      timestamp: nasaTimestampToISO(timestamp),
+      timezone: "UTC"
+    },
+    environment,
+    provenance: {
+      source_id: "nasa_power",
+      source_name:
+        "NASA Prediction Of Worldwide Energy Resources (POWER)",
+      data_type: "reanalysis",
+      variables:
+        "T2M,RH2M,WS10M,T2MWET,T2MDEW,ALLSKY_SFC_SW_DWN",
+      retrieved_at: new Date().toISOString()
+    },
+    quality: {
+      quality_flag: "acceptable",
+      missing_fields: missingFields
+    }
+  });
+}
+
 function clamp(x, a, b) {
   return Math.max(a, Math.min(b, x));
 }
@@ -176,6 +462,14 @@ async function loadWeather() {
       );
     }
 
+    thermalShieldFusionSources.nasa = normalizeNASAObservation({
+      latitude,
+      longitude,
+      timestamp: latestTimestamp,
+      parameterData
+    });
+    updateThermalShieldFusion();
+
     $("lat").value = latitude;
     $("lon").value = longitude;
 
@@ -347,6 +641,9 @@ async function loadECMWF(latitude, longitude) {
     }
 
     renderECMWF(data);
+    thermalShieldFusionSources.ecmwf =
+      window.normalizeECMWFPayload(data);
+    updateThermalShieldFusion();
     status.textContent =
       "Loaded ECMWF Open Data forecast. Values remain raw and separate from HTSI.";
   } catch (error) {

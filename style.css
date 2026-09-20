@@ -60,3 +60,60 @@
 #ecmwfRawDetails {
   margin-top: 14px;
 }
+
+.fusion-results {
+  display: grid;
+  gap: 14px;
+  margin: 14px 0;
+}
+
+.fusion-result {
+  padding: 14px;
+  border: 1px solid #ccd6df;
+  border-left: 6px solid #7d8b96;
+  border-radius: 12px;
+}
+
+.fusion-result.single-source {
+  border-left-color: #1677ff;
+}
+
+.fusion-result.consensus {
+  border-left-color: #16875c;
+}
+
+.fusion-result.unavailable {
+  border-left-color: #c77b30;
+}
+
+.fusion-result h3 {
+  display: inline-block;
+  margin: 0 10px 10px 0;
+}
+
+.fusion-status {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #e9eef3;
+  font-size: .85rem;
+  font-weight: 700;
+}
+
+.fusion-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.fusion-fields>div {
+  padding: 10px;
+  border: 1px solid #e0e7ee;
+  border-radius: 10px;
+}
+
+.fusion-fields span {
+  display: block;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
