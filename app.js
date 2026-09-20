@@ -453,6 +453,7 @@ async function loadNASAResearchDisplay() {
     const data = await response.json();
     const normalized = normalizeLiveNASARecord(data);
     renderNASAResearch(data, normalized);
+    registerThermalShieldFusionSource(normalized);
     status.textContent =
       `Loaded verified NASA POWER observation ` +
       `${data.properties.observation_timestamp_utc} UTC.`;
@@ -643,13 +644,6 @@ async function loadWeather() {
         "Latest NASA POWER observation is incomplete."
       );
     }
-
-    registerThermalShieldFusionSource(normalizeNASAObservation({
-      latitude,
-      longitude,
-      timestamp: latestTimestamp,
-      parameterData
-    }));
 
     $("lat").value = latitude;
     $("lon").value = longitude;
