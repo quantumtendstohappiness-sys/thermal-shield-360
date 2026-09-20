@@ -94,6 +94,24 @@ function appendFusionList(container, label, values) {
   appendFusionField(container, label, values.join(", "));
 }
 
+function appendFusionSourceValues(container, sourceValues) {
+  if (!Array.isArray(sourceValues) || sourceValues.length === 0) return;
+
+  sourceValues.forEach(source => {
+    if (!source || typeof source !== "object") return;
+    const sourceLabel = [
+      source.source_id,
+      source.timestamp,
+      source.unit
+    ].filter(Boolean).join(" · ");
+    appendPresentFusionField(
+      container,
+      `Source value${sourceLabel ? ` (${sourceLabel})` : ""}`,
+      source.value
+    );
+  });
+}
+
 function appendFusionAlignment(container, alignment) {
   if (!alignment || typeof alignment !== "object") return;
   if (alignment.status) {
@@ -143,6 +161,7 @@ function renderThermalShieldFusion(result) {
     appendFusionField(fields, "Unified value", fusion.unified_value);
     appendFusionField(fields, "Unit", fusion.unit);
     appendFusionList(fields, "Contributing source IDs", fusion.contributing_sources);
+    appendFusionSourceValues(fields, fusion.source_values);
     appendFusionAlignment(fields, fusion.alignment);
 
     if (fusion.confidence && typeof fusion.confidence === "object") {
@@ -231,6 +250,67 @@ function updateThermalShieldFusion() {
   );
   window.thermalShieldFusionResult = thermalShieldFusionResult;
   renderThermalShieldFusion(thermalShieldFusionResult);
+}
+
+const HTSI_FUSION_INPUTS = Object.freeze({
+  air_temperature_c: { key: "T", unit: "degC" },
+  relative_humidity_pct: { key: "RH", unit: "%" },
+  wind_speed_ms: { key: "wind", unit: "m/s" },
+  solar_radiation_wm2: { key: "rad", unit: "W/m2" }
+});
+
+function validFusionSourceValue(source, unit) {
+  return source &&
+    typeof source === "object" &&
+    typeof source.source_id === "string" &&
+    source.source_id !== "" &&
+    Number.isFinite(source.value) &&
+    source.unit === unit &&
+    typeof source.timestamp === "string" &&
+    Number.isFinite(Date.parse(source.timestamp));
+}
+
+function eligibleFusionResult(result, unit) {
+  if (!result ||
+      !["single_source", "provisional_consensus"].includes(result.status) ||
+      result.quality_assessment?.status !== "eligible_values_only" ||
+      result.alignment?.status !== "aligned" ||
+      result.unit !== unit ||
+      !Number.isFinite(result.unified_value) ||
+      !Array.isArray(result.contributing_sources) ||
+      result.contributing_sources.length === 0 ||
+      !Array.isArray(result.source_values) ||
+      result.source_values.length === 0 ||
+      !result.source_values.every(source => validFusionSourceValue(source, unit))) {
+    return false;
+  }
+
+  if (result.status === "provisional_consensus") {
+    const temporal = result.alignment?.temporal;
+    const spatial = result.alignment?.spatial;
+    return Array.isArray(temporal) &&
+      temporal.length > 0 &&
+      temporal.every(item => item?.status === "aligned") &&
+      Array.isArray(spatial) &&
+      spatial.length > 0 &&
+      spatial.every(item => item?.status === "aligned");
+  }
+
+  return true;
+}
+
+function fusedHTSIInputs(result) {
+  const inputs = {};
+  if (!result || !Array.isArray(result.results)) return inputs;
+
+  result.results.forEach(fusion => {
+    const input = HTSI_FUSION_INPUTS[fusion?.canonical_variable];
+    if (input && eligibleFusionResult(fusion, input.unit)) {
+      inputs[input.key] = fusion.unified_value;
+    }
+  });
+
+  return inputs;
 }
 
 function normalizeNASAObservation({
@@ -646,6 +726,7 @@ async function loadECMWF(latitude, longitude) {
     updateThermalShieldFusion();
     status.textContent =
       "Loaded ECMWF Open Data forecast. Values remain raw and separate from HTSI.";
+    calculate();
   } catch (error) {
     status.textContent =
       `ECMWF research-data load failed: ${error.message}`;
@@ -655,17 +736,37 @@ async function loadECMWF(latitude, longitude) {
 
 function calculate() {
 
+  const fusedInputs = fusedHTSIInputs(thermalShieldFusionResult);
+  const hasFusionResult = Boolean(
+    thermalShieldFusionResult &&
+    Array.isArray(thermalShieldFusionResult.results)
+  );
   const args = {
-    T: parseFloat($("temp").value),
-    RH: parseFloat($("rh").value),
-    wind: parseFloat($("wind").value),
-    rad: parseFloat($("rad").value),
+    T: hasFusionResult
+      ? fusedInputs.T
+      : parseFloat($("temp").value),
+    RH: hasFusionResult
+      ? fusedInputs.RH
+      : parseFloat($("rh").value),
+    wind: hasFusionResult
+      ? fusedInputs.wind
+      : parseFloat($("wind").value),
+    rad: hasFusionResult
+      ? fusedInputs.rad
+      : parseFloat($("rad").value),
     utci: parseFloat($("utci").value),
     persistence:
       parseFloat($("persistence").value) || 0,
     downside:
       parseFloat($("downside").value) || 0
   };
+
+  if (hasFusionResult) {
+    $("temp").value = Number.isFinite(args.T) ? args.T : "";
+    $("rh").value = Number.isFinite(args.RH) ? args.RH : "";
+    $("wind").value = Number.isFinite(args.wind) ? args.wind : "";
+    $("rad").value = Number.isFinite(args.rad) ? args.rad : "";
+  }
 
   if (
   ![
