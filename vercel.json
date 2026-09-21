@@ -1,1 +1,8 @@
-{}
+{
+  "rewrites": [
+    {
+      "source": "/api/gfs",
+      "destination": "/api/gfs.py"
+    }
+  ]
+}
