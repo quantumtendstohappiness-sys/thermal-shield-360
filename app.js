@@ -742,7 +742,8 @@ async function loadWeather() {
 
   const results = await Promise.all([
     loadNASA(latitude, longitude, loadSequence),
-    loadECMWF(latitude, longitude, loadSequence)
+    loadECMWF(latitude, longitude, loadSequence),
+    loadGFS(latitude, longitude, loadSequence)
   ]);
 
   if (loadSequence !== weatherLoadSequence) return;
@@ -972,6 +973,32 @@ function renderECMWF(data, requestedLocation) {
   $("ecmwfRaw").textContent = JSON.stringify(data, null, 2);
   $("ecmwfSummary").hidden = false;
   $("ecmwfRawDetails").hidden = false;
+}
+
+async function loadGFS(latitude, longitude, loadSequence) {
+  try {
+    const response = await fetch(`/api/gfs?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`);
+    const data = await response.json();
+    if (!response.ok || data?.status === "error") throw new Error(data?.error || "NOAA GFS request failed");
+    if (loadSequence !== weatherLoadSequence) return { source: "NOAA GFS", status: "stale" };
+    const normalized = window.normalizeGFSPayload(data);
+    const gfsStatus = $("gfsStatus");
+    const gfsSummary = $("gfsSummary");
+    const gfsRawDetails = $("gfsRawDetails");
+    const gfsRaw = $("gfsRaw");
+    if (gfsStatus) gfsStatus.textContent = `NOAA GFS loaded for ${latitude}, ${longitude}.`;
+    if (gfsSummary) {
+      gfsSummary.hidden = false;
+      gfsSummary.textContent = JSON.stringify(normalized.properties || normalized, null, 2);
+    }
+    if (gfsRawDetails) gfsRawDetails.hidden = false;
+    if (gfsRaw) gfsRaw.textContent = JSON.stringify(data, null, 2);
+    registerThermalShieldFusionSource(normalized);
+    return { source: "NOAA GFS", status: "success" };
+  } catch (error) {
+    if (loadSequence !== weatherLoadSequence) return { source: "NOAA GFS", status: "stale" };
+    const status = $("gfsStatus"); if (status) status.textContent = `NOAA GFS failed: ${error.message}`; return { source: "NOAA GFS", status: "failed", error: error.message };
+  }
 }
 
 async function loadECMWF(latitude, longitude, loadSequence) {
