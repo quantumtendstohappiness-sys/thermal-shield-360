@@ -381,6 +381,8 @@ def fetch_ecmwf(
         source="ecmwf",
         model=MODEL,
         resol=RESOLUTION,
+        maximum_retries=2,
+        retry_after=1,
     )
 
     temporary_path: str | None = None
