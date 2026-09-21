@@ -113,7 +113,7 @@ def _validate_longitude(value: str | None) -> float:
     if not math.isfinite(longitude):
         raise ValueError("Longitude must be a finite numeric value.")
 
-    return ((longitude + 180.0) % 360.0) - 180.0
+    return longitude
 
 
 def _fetch_with_timeout(

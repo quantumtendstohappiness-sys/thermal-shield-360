@@ -2,6 +2,7 @@ const $ = id => document.getElementById(id);
 
 let thermalShieldFusionResult = null;
 const thermalShieldFusionSources = new Map();
+let weatherLoadSequence = 0;
 
 function registerThermalShieldFusionSource(normalized) {
   const sourceId = normalized?.provenance?.source_id;
@@ -349,7 +350,8 @@ function normalizeNASAObservation({
   latitude,
   longitude,
   timestamp,
-  parameterData
+  parameterData,
+  retrievedAt = new Date().toISOString()
 }) {
   const normalizedValue = value =>
     value === -999 || value === -999.0 || !Number.isFinite(value)
@@ -389,7 +391,7 @@ function normalizeNASAObservation({
       data_type: "reanalysis",
       variables:
         "T2M,RH2M,WS10M,T2MWET,T2MDEW,ALLSKY_SFC_SW_DWN",
-      retrieved_at: new Date().toISOString()
+      retrieved_at: retrievedAt
     },
     quality: {
       quality_flag: "acceptable",
@@ -438,30 +440,6 @@ function normalizeLiveNASARecord(data) {
   });
 }
 
-async function loadNASAResearchDisplay() {
-  const status = $("nasaResearchStatus");
-
-  try {
-    const response = await fetch("data/live/nasa-power-current.json", {
-      cache: "no-store"
-    });
-
-    if (!response.ok) {
-      throw new Error(`NASA POWER synced record HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    const normalized = normalizeLiveNASARecord(data);
-    renderNASAResearch(data, normalized);
-    status.textContent =
-      `Loaded verified NASA POWER observation ` +
-      `${data.properties.observation_timestamp_utc} UTC.`;
-  } catch (error) {
-    status.textContent =
-      `NASA POWER research-data load failed: ${error.message}`;
-  }
-}
-
 function clamp(x, a, b) {
   return Math.max(a, Math.min(b, x));
 }
@@ -493,30 +471,8 @@ function wbgtProxy(T, RH, wind, rad) {
   return 0.7 * tw + 0.2 * globeProxy + 0.1 * T;
 }
 
-async function loadWeather() {
-  $("status").textContent =
-    "Loading NASA POWER data for your selected location…";
-  $("nasaResearchStatus").textContent =
-    "Loading NASA POWER research data…";
-  $("nasaResearchSummary").hidden = true;
-  $("nasaResearchRawDetails").hidden = true;
-  $("nasaResearchParameters").replaceChildren();
-
+async function loadNASA(latitude, longitude, loadSequence) {
   try {
-    const latitude = Number($("lat").value);
-    const longitude = Number($("lon").value);
-
-    if (
-      !Number.isFinite(latitude) ||
-      !Number.isFinite(longitude)
-    ) {
-      throw new Error(
-        "Please select your location first."
-      );
-    }
-
-    void loadNASAResearchDisplay();
-    void loadECMWF(latitude, longitude);
 
     function formatUTCDate(date) {
       return [
@@ -554,10 +510,15 @@ async function loadWeather() {
     }
 
     const data = await response.json();
+    if (loadSequence !== weatherLoadSequence) {
+      return {
+        source: "NASA POWER",
+        status: "stale"
+      };
+    }
 
     const parameterData =
       data.properties?.parameter;
-
     if (
       !parameterData ||
       !parameterData.T2M ||
@@ -644,17 +605,69 @@ async function loadWeather() {
       );
     }
 
+    const retrievedAt = new Date().toISOString();
     registerThermalShieldFusionSource(
       normalizeNASAObservation({
         latitude,
         longitude,
         timestamp: latestTimestamp,
-        parameterData
+        parameterData,
+        retrievedAt
       })
     );
 
-    $("lat").value = latitude;
-    $("lon").value = longitude;
+    const nasaDisplayData = {
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: [longitude, latitude]
+      },
+      properties: {
+        source: "NASA POWER",
+        source_id: "nasa_power",
+        data_type: "reanalysis",
+        observation_timestamp_utc: latestTimestamp,
+        retrieved_at: retrievedAt,
+        environment: {
+          air_temperature_c: temperature,
+          relative_humidity_pct: humidity,
+          wind_speed_ms: wind,
+          nasa_wet_bulb_related_c: wetBulb,
+          dew_point_c: dewPoint,
+          solar_radiation_wm2: solarRadiation
+        },
+        provenance: {
+          provider:
+            "NASA Prediction Of Worldwide Energy Resources (POWER)",
+          variables:
+            "T2M,RH2M,WS10M,T2MWET,T2MDEW,ALLSKY_SFC_SW_DWN",
+          time_standard: "UTC",
+          note:
+            "Selected-location NASA POWER observation. T2MWET is retained as a NASA POWER wet-bulb-related parameter and is not treated as measured natural wet-bulb temperature."
+        },
+        quality: {
+          quality_flag: "acceptable",
+          missing_fields: Object.entries({
+            air_temperature_c: temperature,
+            relative_humidity_pct: humidity,
+            wind_speed_ms: wind,
+            nasa_wet_bulb_related_c: wetBulb,
+            dew_point_c: dewPoint,
+            solar_radiation_wm2: solarRadiation
+          })
+            .filter(([, value]) => value === null)
+            .map(([name]) => `environment.${name}`)
+        }
+      }
+    };
+    const nasaNormalized = normalizeNASAObservation({
+      latitude,
+      longitude,
+      timestamp: latestTimestamp,
+      parameterData,
+      retrievedAt: nasaDisplayData.properties.retrieved_at
+    });
+    renderNASAResearch(nasaDisplayData, nasaNormalized);
 
     $("temp").value = temperature;
     $("rh").value = humidity;
@@ -666,23 +679,85 @@ async function loadWeather() {
       $("rad").value = "";
     }
 
-    $("status").textContent =
-      `Loaded NASA POWER observation ` +
-      `${latestTimestamp} UTC. ` +
-      `Location: ${latitude}, ${longitude}. ` +
-      `Source: NASA POWER. ` +
-      `Solar radiation: ` +
-      `${Number.isFinite(solarRadiation) ? "available" : "unavailable"}.`;
     $("nasaResearchStatus").textContent =
-      `Loaded NASA POWER observation ${latestTimestamp} UTC.`;
+      `NASA POWER loaded for ${latitude}, ${longitude}: ` +
+      `${latestTimestamp} UTC.`;
 
-    calculate();
-
+    return {
+      source: "NASA POWER",
+      status: "success"
+    };
   } catch (e) {
-    $("status").textContent =
-      `NASA POWER load failed: ${e.message}`;
+    if (loadSequence !== weatherLoadSequence) {
+      return {
+        source: "NASA POWER",
+        status: "stale"
+      };
+    }
     $("nasaResearchStatus").textContent =
       `NASA POWER research-data load failed: ${e.message}`;
+    return {
+      source: "NASA POWER",
+      status: "failure",
+      error: e
+    };
+  }
+}
+
+async function loadWeather() {
+  const latitude = Number($("lat").value);
+  const longitude = Number($("lon").value);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    $("status").textContent = "Please select your location first.";
+    $("nasaResearchStatus").textContent =
+      "NASA POWER is waiting for a selected location.";
+    $("ecmwfStatus").textContent =
+      "ECMWF Open Data is waiting for a selected location.";
+    return;
+  }
+
+  const loadSequence = ++weatherLoadSequence;
+  const locationLabel = `${latitude}, ${longitude}`;
+  $("status").textContent =
+    `Loading BOTH NASA POWER and ECMWF Open Data for ${locationLabel}…`;
+  $("nasaResearchStatus").textContent =
+    `Loading NASA POWER research data for ${locationLabel}…`;
+  $("ecmwfStatus").textContent =
+    `Loading ECMWF Open Data research data for ${locationLabel}…`;
+  $("nasaResearchSummary").hidden = true;
+  $("nasaResearchRawDetails").hidden = true;
+  $("nasaResearchParameters").replaceChildren();
+  $("ecmwfSummary").hidden = true;
+  $("ecmwfRawDetails").hidden = true;
+  $("ecmwfParameters").replaceChildren();
+  thermalShieldFusionSources.clear();
+  updateThermalShieldFusion();
+
+  const results = await Promise.all([
+    loadNASA(latitude, longitude, loadSequence),
+    loadECMWF(latitude, longitude, loadSequence)
+  ]);
+
+  if (loadSequence !== weatherLoadSequence) return;
+
+  const nasaResult = results[0];
+  const ecmwfResult = results[1];
+  const nasaStatus = nasaResult.status === "success"
+    ? "NASA POWER succeeded"
+    : "NASA POWER failed";
+  const ecmwfStatus = ecmwfResult.status === "success"
+    ? "ECMWF Open Data succeeded"
+    : "ECMWF Open Data failed";
+  const settledState =
+    nasaResult.status === "success" && ecmwfResult.status === "success"
+      ? "Loading complete"
+      : "Loading complete with errors";
+
+  $("status").textContent =
+    `${settledState} for ${locationLabel}: ${nasaStatus}; ${ecmwfStatus}.`;
+  if (nasaResult.status === "success" && ecmwfResult.status === "success") {
+    calculate();
   }
 }
 
@@ -795,7 +870,7 @@ function addECMWFField(container, label, value) {
   container.appendChild(field);
 }
 
-function renderECMWF(data) {
+function renderECMWF(data, requestedCoordinate) {
   const properties = data.properties || {};
   const provenance = data.provenance || {};
   const quality = data.quality || {};
@@ -812,8 +887,8 @@ function renderECMWF(data) {
   addECMWFField(
     summary,
     "Requested coordinate",
-    properties.requested_coordinate
-      ? `${displayValue(properties.requested_coordinate.latitude)}, ${displayValue(properties.requested_coordinate.longitude)}`
+    requestedCoordinate
+      ? `${displayValue(requestedCoordinate.latitude)}, ${displayValue(requestedCoordinate.longitude)}`
       : null
   );
   addECMWFField(
@@ -883,13 +958,8 @@ function renderECMWF(data) {
   $("ecmwfRawDetails").hidden = false;
 }
 
-async function loadECMWF(latitude, longitude) {
+async function loadECMWF(latitude, longitude, loadSequence) {
   const status = $("ecmwfStatus");
-  status.textContent =
-    `Loading ECMWF research data for ${latitude}, ${longitude}…`;
-  $("ecmwfSummary").hidden = true;
-  $("ecmwfRawDetails").hidden = true;
-  $("ecmwfParameters").replaceChildren();
 
   try {
     const ecmwfUrl =
@@ -903,6 +973,12 @@ async function loadECMWF(latitude, longitude) {
     }
 
     const data = await response.json();
+    if (loadSequence !== weatherLoadSequence) {
+      return {
+        source: "ECMWF Open Data",
+        status: "stale"
+      };
+    }
     const properties = data?.properties;
 
     if (
@@ -916,17 +992,42 @@ async function loadECMWF(latitude, longitude) {
         "ECMWF returned a payload that is not marked raw/not normalized."
       );
     }
+    const requestedCoordinate = properties.requested_coordinate;
+    if (
+      !requestedCoordinate ||
+      requestedCoordinate.latitude !== latitude ||
+      requestedCoordinate.longitude !== longitude
+    ) {
+      throw new Error(
+        "ECMWF returned data for coordinates other than the selected location."
+      );
+    }
 
-    renderECMWF(data);
+    renderECMWF(data, { latitude, longitude });
     registerThermalShieldFusionSource(
       window.normalizeECMWFPayload(data)
     );
     status.textContent =
-      "Loaded ECMWF Open Data forecast. Values remain raw and separate from HTSI.";
-    calculate();
+      `ECMWF Open Data loaded for ${latitude}, ${longitude}. ` +
+      "Values remain raw and separate from HTSI.";
+    return {
+      source: "ECMWF Open Data",
+      status: "success"
+    };
   } catch (error) {
+    if (loadSequence !== weatherLoadSequence) {
+      return {
+        source: "ECMWF Open Data",
+        status: "stale"
+      };
+    }
     status.textContent =
       `ECMWF research-data load failed: ${error.message}`;
+    return {
+      source: "ECMWF Open Data",
+      status: "failure",
+      error
+    };
   }
 }
   
