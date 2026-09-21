@@ -3,6 +3,36 @@ const $ = id => document.getElementById(id);
 let thermalShieldFusionResult = null;
 const thermalShieldFusionSources = new Map();
 let weatherLoadSequence = 0;
+let selectedLocation = null;
+
+function setSelectedLocation({ name, latitude, longitude }) {
+  if (
+    typeof name !== "string" ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude)
+  ) {
+    throw new Error("Selected location must have a name and finite coordinates.");
+  }
+
+  selectedLocation = {
+    name,
+    latitude,
+    longitude
+  };
+  $("lat").value = latitude;
+  $("lon").value = longitude;
+  $("selectedLocation").textContent = `📍 ${name}`;
+  weatherLoadSequence += 1;
+}
+
+function selectedLocationForRequest() {
+  if (!selectedLocation) return null;
+  return {
+    name: selectedLocation.name,
+    latitude: selectedLocation.latitude,
+    longitude: selectedLocation.longitude
+  };
+}
 
 function registerThermalShieldFusionSource(normalized) {
   const sourceId = normalized?.provenance?.source_id;
@@ -667,7 +697,11 @@ async function loadNASA(latitude, longitude, loadSequence) {
       parameterData,
       retrievedAt: nasaDisplayData.properties.retrieved_at
     });
-    renderNASAResearch(nasaDisplayData, nasaNormalized);
+    renderNASAResearch(nasaDisplayData, nasaNormalized, {
+      name: selectedLocation?.name,
+      latitude,
+      longitude
+    });
 
     $("temp").value = temperature;
     $("rh").value = humidity;
@@ -705,10 +739,9 @@ async function loadNASA(latitude, longitude, loadSequence) {
 }
 
 async function loadWeather() {
-  const latitude = Number($("lat").value);
-  const longitude = Number($("lon").value);
+  const requestLocation = selectedLocationForRequest();
 
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+  if (!requestLocation) {
     $("status").textContent = "Please select your location first.";
     $("nasaResearchStatus").textContent =
       "NASA POWER is waiting for a selected location.";
@@ -718,13 +751,15 @@ async function loadWeather() {
   }
 
   const loadSequence = ++weatherLoadSequence;
+  const { name, latitude, longitude } = requestLocation;
   const locationLabel = `${latitude}, ${longitude}`;
   $("status").textContent =
-    `Loading BOTH NASA POWER and ECMWF Open Data for ${locationLabel}…`;
+    `Loading BOTH NASA POWER and ECMWF Open Data for ${name} ` +
+    `(${locationLabel})…`;
   $("nasaResearchStatus").textContent =
-    `Loading NASA POWER research data for ${locationLabel}…`;
+    `Loading NASA POWER research data for ${name} (${locationLabel})…`;
   $("ecmwfStatus").textContent =
-    `Loading ECMWF Open Data research data for ${locationLabel}…`;
+    `Loading ECMWF Open Data research data for ${name} (${locationLabel})…`;
   $("nasaResearchSummary").hidden = true;
   $("nasaResearchRawDetails").hidden = true;
   $("nasaResearchParameters").replaceChildren();
@@ -755,7 +790,8 @@ async function loadWeather() {
       : "Loading complete with errors";
 
   $("status").textContent =
-    `${settledState} for ${locationLabel}: ${nasaStatus}; ${ecmwfStatus}.`;
+    `${settledState} for ${name} (${locationLabel}): ` +
+    `${nasaStatus}; ${ecmwfStatus}.`;
   if (nasaResult.status === "success" && ecmwfResult.status === "success") {
     calculate();
   }
@@ -787,7 +823,7 @@ function nasaCoordinateValue(coordinates) {
     .join(", ");
 }
 
-function renderNASAResearch(data, normalized) {
+function renderNASAResearch(data, normalized, requestedLocation) {
   const properties = data?.properties || {};
   const environment = properties.environment || {};
   const provenance = normalized?.provenance || {};
@@ -811,6 +847,7 @@ function renderNASAResearch(data, normalized) {
 
   addNASAField(summary, "Source", properties.source);
   addNASAField(summary, "Source ID", properties.source_id);
+  addNASAField(summary, "Selected location", requestedLocation?.name);
   addNASAField(summary, "Observation timestamp (UTC)", properties.observation_timestamp_utc);
   addNASAField(summary, "Normalized timestamp (UTC)", normalized?.time?.timestamp);
   addNASAField(
@@ -870,7 +907,7 @@ function addECMWFField(container, label, value) {
   container.appendChild(field);
 }
 
-function renderECMWF(data, requestedCoordinate) {
+function renderECMWF(data, requestedLocation) {
   const properties = data.properties || {};
   const provenance = data.provenance || {};
   const quality = data.quality || {};
@@ -881,14 +918,15 @@ function renderECMWF(data, requestedCoordinate) {
   parametersBox.replaceChildren();
 
   addECMWFField(summary, "Source", properties.source);
+  addECMWFField(summary, "Selected location", requestedLocation?.name);
   addECMWFField(summary, "Model", properties.model);
   addECMWFField(summary, "Resolution", properties.resolution);
   addECMWFField(summary, "Status", properties.status);
   addECMWFField(
     summary,
     "Requested coordinate",
-    requestedCoordinate
-      ? `${displayValue(requestedCoordinate.latitude)}, ${displayValue(requestedCoordinate.longitude)}`
+    requestedLocation
+      ? `${displayValue(requestedLocation.latitude)}, ${displayValue(requestedLocation.longitude)}`
       : null
   );
   addECMWFField(
@@ -1003,7 +1041,11 @@ async function loadECMWF(latitude, longitude, loadSequence) {
       );
     }
 
-    renderECMWF(data, { latitude, longitude });
+    renderECMWF(data, {
+      name: selectedLocation?.name,
+      latitude,
+      longitude
+    });
     registerThermalShieldFusionSource(
       window.normalizeECMWFPayload(data)
     );
@@ -1304,9 +1346,13 @@ function useMyLocation() {
 
       const longitude =
         Number(position.coords.longitude.toFixed(6));
+      const locationSelection = {
+        name: "Detected location",
+        latitude,
+        longitude
+      };
 
-      $("lat").value = latitude;
-      $("lon").value = longitude;
+      setSelectedLocation(locationSelection);
 
       try {
   const nominatimUrl = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`;
@@ -1339,13 +1385,23 @@ function useMyLocation() {
       .filter(Boolean)
       .join(", ");
 
-  $("selectedLocation").textContent =
-    `📍 ${readableLocation}`;
+  locationSelection.name = readableLocation;
+  if (
+    selectedLocation?.latitude === latitude &&
+    selectedLocation?.longitude === longitude
+  ) {
+    setSelectedLocation(locationSelection);
+  }
 
 } catch (error) {
 
-  $("selectedLocation").textContent =
-    "📍 Location detected";
+  if (
+    selectedLocation?.latitude === latitude &&
+    selectedLocation?.longitude === longitude
+  ) {
+    $("selectedLocation").textContent =
+  "📍 Location detected";
+  }
 
 }
 
@@ -1399,8 +1455,7 @@ async function searchLocation() {
       `?q=${encodeURIComponent(query)}` +
       "&format=jsonv2" +
       "&addressdetails=1" +
-      "&limit=5" +
-      "&countrycodes=in";
+      "&limit=5";
 
     const response = await fetch(nominatimUrl);
 
@@ -1439,11 +1494,11 @@ async function searchLocation() {
           return;
         }
 
-        $("lat").value = latitude;
-        $("lon").value = longitude;
-
-        $("selectedLocation").textContent =
-          `📍 ${place.display_name}`;
+        setSelectedLocation({
+          name: place.display_name,
+          latitude,
+          longitude
+        });
 
         resultsBox.textContent =
           "✓ Location selected successfully.";
