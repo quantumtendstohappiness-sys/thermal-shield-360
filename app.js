@@ -19,6 +19,13 @@ function setSelectedLocation({ name, latitude, longitude }) {
     latitude,
     longitude
   };
+  thermalShieldFusionSources.clear();
+  thermalShieldFusionResult = null;
+  window.thermalShieldFusionResult = null;
+  ["temp", "rh", "wind", "rad"].forEach(id => {
+    $(id).value = "";
+  });
+  updateThermalShieldFusion();
   $("lat").value = latitude;
   $("lon").value = longitude;
   $("selectedLocation").textContent = `📍 ${name}`;
@@ -430,46 +437,6 @@ function normalizeNASAObservation({
   });
 }
 
-function normalizeLiveNASARecord(data) {
-  const properties = data?.properties;
-  const coordinates = data?.geometry?.coordinates;
-  const observationTimestamp = String(properties?.observation_timestamp_utc || "");
-  const match = observationTimestamp.match(
-    /^(\d{4})(\d{2})(\d{2})(\d{2})$/
-  );
-
-  if (
-    data?.type !== "Feature" ||
-    !properties ||
-    !Array.isArray(coordinates) ||
-    coordinates.length < 2 ||
-    !match
-  ) {
-    throw new Error("Verified NASA POWER record is malformed.");
-  }
-
-  return window.normalizeNASARecord({
-    location: {
-      name: "NASA POWER synced point",
-      latitude: coordinates[1],
-      longitude: coordinates[0]
-    },
-    time: {
-      timestamp: nasaTimestampToISO(observationTimestamp),
-      timezone: properties.provenance?.time_standard || "UTC"
-    },
-    environment: properties.environment,
-    provenance: {
-      source_id: properties.source_id,
-      source_name: properties.provenance?.provider || properties.source,
-      data_type: properties.data_type,
-      variables: properties.provenance?.variables,
-      retrieved_at: properties.retrieved_at
-    },
-    quality: properties.quality
-  });
-}
-
 function clamp(x, a, b) {
   return Math.max(a, Math.min(b, x));
 }
@@ -549,14 +516,18 @@ async function loadNASA(latitude, longitude, loadSequence) {
 
     const parameterData =
       data.properties?.parameter;
+    const responseCoordinates = data.geometry?.coordinates;
     if (
       !parameterData ||
       !parameterData.T2M ||
       !parameterData.RH2M ||
-      !parameterData.WS10M
+      !parameterData.WS10M ||
+      !Array.isArray(responseCoordinates) ||
+      !Number.isFinite(responseCoordinates[0]) ||
+      !Number.isFinite(responseCoordinates[1])
     ) {
       throw new Error(
-        "NASA POWER returned incomplete weather data."
+        "NASA POWER returned incomplete weather data or coordinates."
       );
     }
 
@@ -673,7 +644,7 @@ async function loadNASA(latitude, longitude, loadSequence) {
             "T2M,RH2M,WS10M,T2MWET,T2MDEW,ALLSKY_SFC_SW_DWN",
           time_standard: "UTC",
           note:
-            "Selected-location NASA POWER observation. T2MWET is retained as a NASA POWER wet-bulb-related parameter and is not treated as measured natural wet-bulb temperature."
+            "Live NASA POWER response requested for the selected location. T2MWET is retained as a NASA POWER wet-bulb-related parameter and is not treated as measured natural wet-bulb temperature."
         },
         quality: {
           quality_flag: "acceptable",
@@ -848,11 +819,18 @@ function renderNASAResearch(data, normalized, requestedLocation) {
   addNASAField(summary, "Source", properties.source);
   addNASAField(summary, "Source ID", properties.source_id);
   addNASAField(summary, "Selected location", requestedLocation?.name);
+  addNASAField(
+    summary,
+    "Requested coordinates",
+    requestedLocation
+      ? `${displayValue(requestedLocation.latitude)}, ${displayValue(requestedLocation.longitude)}`
+      : null
+  );
   addNASAField(summary, "Observation timestamp (UTC)", properties.observation_timestamp_utc);
   addNASAField(summary, "Normalized timestamp (UTC)", normalized?.time?.timestamp);
   addNASAField(
     summary,
-    "Coordinates",
+    "Response coordinates",
     nasaCoordinateValue(data?.geometry?.coordinates)
   );
   addNASAField(summary, "Data type", properties.data_type);
@@ -1271,7 +1249,7 @@ ${htsiResult.medical_status}`;
 
   
       $("sourceLog").textContent =
-    `Weather: NASA POWER synchronized observation
+    `Weather: NASA POWER live selected-location observation
 (T2M, RH2M, WS10M, T2MWET, T2MDEW, ALLSKY_SFC_SW_DWN).
 
 Heat Index: Thermal Shield 360 Heat Index engine
