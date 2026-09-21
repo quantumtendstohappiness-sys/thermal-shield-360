@@ -977,7 +977,7 @@ function renderECMWF(data, requestedLocation) {
 
 async function loadGFS(latitude, longitude, loadSequence) {
   try {
-    const response = await fetch(`https://thermal-shield-360.vercel.app/api/gfs?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`);
+    const response = await fetch(`https://thermal-shield-360.vercel.app/api/noaa_gfs?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`);
     const data = await response.json();
     if (!response.ok || data?.status === "error") throw new Error(data?.error || "NOAA GFS request failed");
     if (loadSequence !== weatherLoadSequence) return { source: "NOAA GFS", status: "stale" };
