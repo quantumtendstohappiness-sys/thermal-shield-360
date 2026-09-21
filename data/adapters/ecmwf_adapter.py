@@ -26,6 +26,8 @@ PARAMETERS = ("2t", "2d", "10u", "10v", "ssrd", "strd", "skt")
 FORECAST_STEP = 3
 SUBSET_RADIUS_DEGREES = 1.0
 RAW_STATUS = "raw/not normalized"
+ECMWF_MAX_RETRIES = 2
+ECMWF_RETRY_AFTER = (1, 4, 2)
 
 
 def _iso_utc(date_value: Any, time_value: Any) -> str | None:
@@ -381,8 +383,9 @@ def fetch_ecmwf(
         source="ecmwf",
         model=MODEL,
         resol=RESOLUTION,
-        maximum_retries=2,
-        retry_after=1,
+        maximum_retries=ECMWF_MAX_RETRIES,
+        retry_after=ECMWF_RETRY_AFTER,
+        use_server_retry_after=True,
     )
 
     temporary_path: str | None = None
