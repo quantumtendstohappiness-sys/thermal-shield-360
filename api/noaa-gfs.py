@@ -211,5 +211,6 @@ class handler(BaseHTTPRequestHandler):
         body=result.get("body","") if isinstance(result,dict) else str(result)
         self.send_response(status)
         self.send_header("Content-Type","application/json")
+        self.send_header("Access-Control-Allow-Origin","*")
         self.end_headers()
         self.wfile.write(body.encode("utf-8") if isinstance(body,str) else body)
