@@ -989,7 +989,34 @@ async function loadGFS(latitude, longitude, loadSequence) {
     if (gfsStatus) gfsStatus.textContent = `NOAA GFS loaded for ${latitude}, ${longitude}.`;
     if (gfsSummary) {
       gfsSummary.hidden = false;
-      gfsSummary.textContent = JSON.stringify(normalized.properties || normalized, null, 2);
+      const view = normalized.properties || normalized;
+            const env = view.environment || {};
+            const grid = view.source_grid || {};
+            const time = view.time || {};
+            const prov = view.provenance || {};
+            const quality = view.quality || {};
+            const show = v => v === null || v === undefined || v === "" ? "Not supplied" : String(v);
+            gfsSummary.innerHTML = `
+                <div class="data-grid">
+                    <div><strong>Source</strong><span>NOAA GFS / NCEP</span></div>
+                    <div><strong>Model</strong><span>GFS</span></div>
+                    <div><strong>Resolution</strong><span>0.25°</span></div>
+                    <div><strong>Requested Location</strong><span>${show(view.requested_coordinate)}</span></div>
+                    <div><strong>Nearest GFS Grid</strong><span>${show(grid.latitude)}, ${show(grid.longitude)}</span></div>
+                    <div><strong>Forecast Initialization</strong><span>${show(time.forecast_initialization_time)}</span></div>
+                    <div><strong>Forecast Valid Time</strong><span>${show(time.forecast_valid_time)}</span></div>
+                    <div><strong>Forecast Step</strong><span>${show(time.forecast_step ?? time.forecast_lead_hours)} hours</span></div>
+                    <div><strong>Air Temperature</strong><span>${show(env.air_temperature_c)} °C</span></div>
+                    <div><strong>Dew Point</strong><span>${show(env.dew_point_c)} °C</span></div>
+                    <div><strong>Wind U</strong><span>${show(env.wind_u_ms)} m/s</span></div>
+                    <div><strong>Wind V</strong><span>${show(env.wind_v_ms)} m/s</span></div>
+                    <div><strong>Wind Speed</strong><span>${show(env.wind_speed_ms)} m/s</span></div>
+                    <div><strong>Relative Humidity</strong><span>${show(env.relative_humidity_pct)} %</span></div>
+                    <div><strong>Solar Radiation</strong><span>${show(env.solar_radiation_wm2)} W/m²</span></div>
+                    <div><strong>Quality</strong><span>${show(quality.quality_flag || quality.status)}</span></div>
+                    <div><strong>Retrieved At</strong><span>${show(prov.retrieved_at)}</span></div>
+                </div>`;
+
     }
     if (gfsRawDetails) gfsRawDetails.hidden = false;
     if (gfsRaw) gfsRaw.textContent = JSON.stringify(data, null, 2);
