@@ -22,53 +22,50 @@ def _get(url):
 
 def _find_cycle(now, lat, lon):
     now = now.astimezone(timezone.utc)
-    cycle_hour = (now.hour // 6) * 6
-    base = now.replace(
-        hour=cycle_hour,
-        minute=0,
-        second=0,
-        microsecond=0,
-    )
 
-    for back in range(0, 12):
-        t = base - timedelta(hours=6 * back)
-        cycle = t.strftime("%H")
-        date_text = t.strftime("%Y%m%d")
+    # NOAA GFS Sflux currently provides 06Z and 00Z.
+    # Select only a cycle for which BOTH atmospheric GFS
+    # and Sflux products are actually available.
+    for day_back in range(0, 8):
+        day = (now - timedelta(days=day_back)).strftime("%Y%m%d")
 
-        pgrb_query = {
-            "file": f"gfs.t{cycle}z.pgrb2.0p25.f003",
-            "var_TMP": "on",
-            "lev_2_m_above_ground": "on",
-            "leftlon": lon - 0.5,
-            "rightlon": lon + 0.5,
-            "toplat": lat + 0.5,
-            "bottomlat": lat - 0.5,
-            "dir": f"/gfs.{date_text}/{cycle}/atmos",
-        }
+        for cycle in (6, 0):
+            cycle_text = f"{cycle:02d}"
 
-        sflux_query = {
-            "file": f"gfs.t{cycle}z.sfluxgrbf003.grib2",
-            "var_DSWRF": "on",
-            "lev_surface": "on",
-            "leftlon": lon - 0.5,
-            "rightlon": lon + 0.5,
-            "toplat": lat + 0.5,
-            "bottomlat": lat - 0.5,
-            "dir": f"/gfs.{date_text}/{cycle}/atmos",
-        }
+            pgrb_query = {
+                "file": f"gfs.t{cycle_text}z.pgrb2.0p25.f003",
+                "var_TMP": "on",
+                "lev_2_m_above_ground": "on",
+                "leftlon": lon - 0.5,
+                "rightlon": lon + 0.5,
+                "toplat": lat + 0.5,
+                "bottomlat": lat - 0.5,
+                "dir": f"/gfs.{day}/{cycle_text}/atmos",
+            }
 
-        try:
-            _get(
-                NOMADS + "?" +
-                urllib.parse.urlencode(pgrb_query)
-            )
-            _get(
-                SFLUX + "?" +
-                urllib.parse.urlencode(sflux_query)
-            )
-            return date_text, int(cycle)
-        except Exception:
-            continue
+            sflux_query = {
+                "file": f"gfs.t{cycle_text}z.sfluxgrbf003.grib2",
+                "var_DSWRF": "on",
+                "lev_surface": "on",
+                "leftlon": lon - 0.5,
+                "rightlon": lon + 0.5,
+                "toplat": lat + 0.5,
+                "bottomlat": lat - 0.5,
+                "dir": f"/gfs.{day}/{cycle_text}/atmos",
+            }
+
+            try:
+                _get(
+                    NOMADS + "?" +
+                    urllib.parse.urlencode(pgrb_query)
+                )
+                _get(
+                    SFLUX + "?" +
+                    urllib.parse.urlencode(sflux_query)
+                )
+                return day, cycle
+            except Exception:
+                continue
 
     raise RuntimeError(
         "No GFS cycle with both atmospheric and Sflux data is available."
@@ -174,45 +171,12 @@ def _parse_grib(blob, requested_lat, requested_lon):
             os.unlink(temp_path)
 
 
-def _fetch_sflux_dswrf(date_text, cycle, lat, lon, forecast_step):
-    try:
-        step = int(forecast_step)
-
-        query = {
-            "file": (
-                f"gfs.t{cycle:02d}z."
-                f"sfluxgrbf{step:03d}.grib2"
-            ),
-            "leftlon": lon - 0.5,
-            "rightlon": lon + 0.5,
-            "toplat": lat + 0.5,
-            "bottomlat": lat - 0.5,
-            "dir": f"/gfs.{date_text}/{cycle:02d}/atmos",
-        }
-
-        url = (
-            SFLUX
-            + "?"
-            + urllib.parse.urlencode(query)
-        )
-
-        blob = _get(url)
-
-        records = _parse_grib(
-            blob,
-            lat,
-            lon
-        )
-
-        return records.get("dswrf")
-
-    except Exception:
-        return None
-
-
 def _fetch_sflux_dswrf(date_text, cycle, lat, lon, forecast_step=3):
     query = {
-        "file": f"gfs.t{cycle:02d}z.sfluxgrbf{forecast_step:03d}.grib2",
+        "file": (
+            f"gfs.t{cycle:02d}z."
+            f"sfluxgrbf{int(forecast_step):03d}.grib2"
+        ),
         "var_DSWRF": "on",
         "lev_surface": "on",
         "leftlon": lon - 0.5,
@@ -221,8 +185,20 @@ def _fetch_sflux_dswrf(date_text, cycle, lat, lon, forecast_step=3):
         "bottomlat": lat - 0.5,
         "dir": f"/gfs.{date_text}/{cycle:02d}/atmos",
     }
-    url = SFLUX + "?" + urllib.parse.urlencode(query)
-    return _parse_grib(_get(url), lat, lon)
+
+    url = (
+        SFLUX
+        + "?"
+        + urllib.parse.urlencode(query)
+    )
+
+    records = _parse_grib(
+        _get(url),
+        lat,
+        lon
+    )
+
+    return records.get("dswrf")
 
 def _gfs_handler(request):
     try:
