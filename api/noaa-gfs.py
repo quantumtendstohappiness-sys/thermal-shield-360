@@ -30,32 +30,49 @@ def _find_cycle(now, lat, lon):
         microsecond=0,
     )
 
-    for back in range(0, 8):
+    for back in range(0, 12):
         t = base - timedelta(hours=6 * back)
         cycle = t.strftime("%H")
         date_text = t.strftime("%Y%m%d")
 
-        test_url = (
-            f"{NOMADS}?file=gfs.t{cycle}z.pgrb2.0p25.f003"
-            f"&var_TMP=on"
-            f"&lev_2_m_above_ground=on"
-            f"&leftlon={lon - 0.5}"
-            f"&rightlon={lon + 0.5}"
-            f"&toplat={lat + 0.5}"
-            f"&bottomlat={lat - 0.5}"
-            f"&dir=%2Fgfs.{date_text}%2F{cycle}%2Fatmos"
-        )
+        pgrb_query = {
+            "file": f"gfs.t{cycle}z.pgrb2.0p25.f003",
+            "var_TMP": "on",
+            "lev_2_m_above_ground": "on",
+            "leftlon": lon - 0.5,
+            "rightlon": lon + 0.5,
+            "toplat": lat + 0.5,
+            "bottomlat": lat - 0.5,
+            "dir": f"/gfs.{date_text}/{cycle}/atmos",
+        }
+
+        sflux_query = {
+            "file": f"gfs.t{cycle}z.sfluxgrbf003.grib2",
+            "var_DSWRF": "on",
+            "lev_surface": "on",
+            "leftlon": lon - 0.5,
+            "rightlon": lon + 0.5,
+            "toplat": lat + 0.5,
+            "bottomlat": lat - 0.5,
+            "dir": f"/gfs.{date_text}/{cycle}/atmos",
+        }
 
         try:
-            _get(test_url)
+            _get(
+                NOMADS + "?" +
+                urllib.parse.urlencode(pgrb_query)
+            )
+            _get(
+                SFLUX + "?" +
+                urllib.parse.urlencode(sflux_query)
+            )
             return date_text, int(cycle)
         except Exception:
             continue
 
     raise RuntimeError(
-        "No current GFS 0.25 degree forecast file is available."
+        "No GFS cycle with both atmospheric and Sflux data is available."
     )
-
 
 def _parse_grib(blob, requested_lat, requested_lon):
     from eccodes import (
