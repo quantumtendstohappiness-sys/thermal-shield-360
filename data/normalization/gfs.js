@@ -45,7 +45,7 @@ function normalizeGFSPayload(rawPayload) {
     throw new TypeError("GFS payload must be an object.");
   }
 
-  const properties = rawPayload.properties;
+  const properties = rawPayload.properties || (rawPayload.environment ? rawPayload : null);
   if (!properties || typeof properties !== "object") {
     throw new Error("GFS payload is missing properties.");
   }
