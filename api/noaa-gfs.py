@@ -132,7 +132,7 @@ def _parse_grib(blob, requested_lat, requested_lon):
 
                     value = float(values[best])
 
-                    records[short_name] = {
+                    records["dswrf"] = {
                         "value": value,
                         "native_value": value,
                         "unit": str(codes_get(handle, "units")),
@@ -194,7 +194,7 @@ def _fetch_sflux_dswrf(date_text, cycle, lat, lon, forecast_step=3):
                         codes_get(handle, "shortName")
                     ).strip().lower()
 
-                    if short_name != "dswrf":
+                    if short_name not in ("dswrf", "sdswrf"):
                         continue
 
                     values = codes_get_array(handle, "values")
