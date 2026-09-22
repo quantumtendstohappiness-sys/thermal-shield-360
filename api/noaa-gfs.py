@@ -65,6 +65,8 @@ def _parse_grib(blob, requested_lat, requested_lon):
                     wanted_level = (
                         (short_name in ("2t", "2d") and level == 2)
                         or (short_name in ("10u", "10v") and level == 10)
+                        or (short_name == "2r" and level == 2)
+                        or (short_name == "dswrf" and level == 0)
                     )
                     if not wanted_level:
                         continue
@@ -110,6 +112,8 @@ def _gfs_handler(request):
             "var_DPT": "on",
             "var_UGRD": "on",
             "var_VGRD": "on",
+            "var_RH": "on",
+            "var_DSWRF": "on",
             "lev_2_m_above_ground": "on",
             "lev_10_m_above_ground": "on",
             "leftlon": lon - 0.5,
@@ -156,6 +160,8 @@ def _gfs_handler(request):
                 "wind_u_ms": u,
                 "wind_v_ms": v,
                 "wind_speed_ms": wind,
+                    "relative_humidity_pct": records.get("2r", {}).get("value"),
+                    "solar_radiation_wm2": records.get("dswrf", {}).get("value"),
             },
             "provenance": {
                 "provider": "NOAA / NCEP",
@@ -172,6 +178,8 @@ def _gfs_handler(request):
                         "wind_u_ms": u,
                         "wind_v_ms": v,
                         "wind_speed_ms": wind,
+                        "relative_humidity_pct": records.get("2r", {}).get("value"),
+                        "solar_radiation_wm2": records.get("dswrf", {}).get("value"),
                     }.items() if v is None
                 ],
             },
