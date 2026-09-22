@@ -72,82 +72,85 @@ def _find_cycle(now, lat, lon):
     )
 
 def _parse_grib(blob, requested_lat, requested_lon):
+    import os
     import tempfile
 
     records = {}
-    f = tempfile.NamedTemporaryFile(mode='w+b')
-    f.write(blob)
-    f.flush()
-    f.seek(0)
 
-    def safe_get(handle, key, default=None):
-        try:
-            return codes_get(handle, key)
-        except Exception:
-            return default
+    fd, path = tempfile.mkstemp(suffix=".grib2")
+    try:
+        with os.fdopen(fd, "wb") as out:
+            out.write(blob)
 
-    while True:
-        handle = codes_grib_new_from_file(f)
-        if handle is None:
-            break
+        with open(path, "rb") as f:
+            while True:
+                handle = codes_grib_new_from_file(f)
+                if handle is None:
+                    break
 
-        try:
-            short_name = str(
-                safe_get(handle, "shortName", "")
-            ).strip().lower()
+                try:
+                    short_name = str(
+                        codes_get(handle, "shortName")
+                    ).strip().lower()
 
-            level = safe_get(handle, "level")
-            type_of_level = str(
-                safe_get(handle, "typeOfLevel", "")
-            ).strip().lower()
+                    level = codes_get(handle, "level")
+                    type_of_level = str(
+                        codes_get(handle, "typeOfLevel")
+                    ).strip().lower()
 
-            if not (
-                (short_name in ("2t", "2d", "2r") and level == 2)
-                or
-                (short_name in ("10u", "10v") and level == 10)
-                or
-                (short_name == "dswrf"
-                 and type_of_level == "surface")
-            ):
-                continue
-
-            values = codes_get_array(handle, "values")
-            latitudes = codes_get_array(handle, "latitudes")
-            longitudes = codes_get_array(handle, "longitudes")
-
-            if len(values) == 0:
-                continue
-
-            best = min(
-                range(len(values)),
-                key=lambda i:
-                    (
-                        (float(latitudes[i]) - float(requested_lat)) ** 2
-                        +
-                        (float(longitudes[i]) - float(requested_lon)) ** 2
+                    wanted = (
+                        (short_name in ("2t", "2d", "2r") and level == 2)
+                        or
+                        (short_name in ("10u", "10v") and level == 10)
+                        or
+                        (
+                            short_name == "dswrf"
+                            and type_of_level == "surface"
+                        )
                     )
-            )
 
-            native_value = float(values[best])
+                    if not wanted:
+                        continue
 
-            records[short_name] = {
-                "value": native_value,
-                "native_value": native_value,
-                "unit": str(safe_get(handle, "units", "")),
-                "name": str(safe_get(handle, "name", short_name)),
-                "level": level,
-                "type_of_level": type_of_level,
-                "step_type": safe_get(handle, "stepType"),
-                "start_step": safe_get(handle, "startStep"),
-                "end_step": safe_get(handle, "endStep"),
-                "grid_latitude": float(latitudes[best]),
-                "grid_longitude": float(longitudes[best]),
-            }
+                    values = codes_get_array(handle, "values")
+                    latitudes = codes_get_array(handle, "latitudes")
+                    longitudes = codes_get_array(handle, "longitudes")
 
-        finally:
-            codes_release(handle)
+                    if len(values) == 0:
+                        continue
 
-    f.close()
+                    best = min(
+                        range(len(values)),
+                        key=lambda i:
+                            (
+                                (float(latitudes[i]) - float(requested_lat)) ** 2
+                                +
+                                (float(longitudes[i]) - float(requested_lon)) ** 2
+                            )
+                    )
+
+                    value = float(values[best])
+
+                    records[short_name] = {
+                        "value": value,
+                        "native_value": value,
+                        "unit": str(codes_get(handle, "units")),
+                        "name": str(codes_get(handle, "name")),
+                        "level": level,
+                        "type_of_level": type_of_level,
+                        "step_type": codes_get(handle, "stepType"),
+                        "start_step": codes_get(handle, "startStep"),
+                        "end_step": codes_get(handle, "endStep"),
+                        "grid_latitude": float(latitudes[best]),
+                        "grid_longitude": float(longitudes[best]),
+                    }
+
+                finally:
+                    codes_release(handle)
+
+    finally:
+        os.unlink(path)
+
     return records
 
 def _fetch_sflux_dswrf(date_text, cycle, lat, lon, forecast_step=3):
