@@ -72,10 +72,13 @@ def _find_cycle(now, lat, lon):
     )
 
 def _parse_grib(blob, requested_lat, requested_lon):
-    import io
+    import tempfile
 
     records = {}
-    f = io.BytesIO(blob)
+    f = tempfile.NamedTemporaryFile(mode='w+b')
+    f.write(blob)
+    f.flush()
+    f.seek(0)
 
     def safe_get(handle, key, default=None):
         try:
