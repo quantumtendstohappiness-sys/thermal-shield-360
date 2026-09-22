@@ -981,7 +981,7 @@ async function loadGFS(latitude, longitude, loadSequence) {
     const data = await response.json();
     if (!response.ok || data?.status === "error") throw new Error(data?.error || "NOAA GFS request failed");
     if (loadSequence !== weatherLoadSequence) return { source: "NOAA GFS", status: "stale" };
-    const normalized = window.normalizeGFSPayload(data);
+    const normalized = window.normalizeGFSPayload({ type: "Feature", geometry: { type: "Point", coordinates: [Number(longitude), Number(latitude)] }, properties: data });
     const gfsStatus = $("gfsStatus");
     const gfsSummary = $("gfsSummary");
     const gfsRawDetails = $("gfsRawDetails");
