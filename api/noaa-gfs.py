@@ -1,4 +1,3 @@
-from http.server import BaseHTTPRequestHandler
 import json, math, os, tempfile, urllib.parse, urllib.request
 from datetime import datetime, timezone, timedelta
 
@@ -93,112 +92,115 @@ def _parse_grib(blob, requested_lat, requested_lon):
         if temp_path and os.path.exists(temp_path):
             os.unlink(temp_path)
 
+from http.server import BaseHTTPRequestHandler
+
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         from urllib.parse import urlparse, parse_qs
-        params = {k: v[0] for k,v in parse_qs(urlparse(self.path).query).items()}
-        request = type('Request', (), {'args': params})()
-    try:
-        params = getattr(request, "args", {}) or {}
-        lat = float(params.get("latitude"))
-        lon = float(params.get("longitude"))
-
-        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
-            raise ValueError("Invalid latitude/longitude.")
-
-        now = datetime.now(timezone.utc)
-        date_text, cycle = _find_cycle(now, lat, lon)
-
-        query = {
-            "file": f"gfs.t{cycle:02d}z.pgrb2.0p25.f003",
-            "var_TMP": "on",
-            "var_DPT": "on",
-            "var_UGRD": "on",
-            "var_VGRD": "on",
-            "lev_2_m_above_ground": "on",
-            "lev_10_m_above_ground": "on",
-            "leftlon": lon - 0.5,
-            "rightlon": lon + 0.5,
-            "toplat": lat + 0.5,
-            "bottomlat": lat - 0.5,
-            "dir": f"/gfs.{date_text}/{cycle:02d}/atmos",
-        }
-
-        url = NOMADS + "?" + urllib.parse.urlencode(query)
-        blob = _get(url)
-        records = _parse_grib(blob, lat, lon)
-
-        if not records:
-            raise RuntimeError("GFS response contained no usable requested variables.")
-
-        def celsius(key):
-            return records[key]["value"] - 273.15 if key in records else None
-
-        u = records.get("10u", {}).get("value")
-        v = records.get("10v", {}).get("value")
-        wind = math.hypot(u, v) if u is not None and v is not None else None
-
-        result = {
-            "source": "NOAA GFS",
-            "source_id": "noaa_gfs_0p25",
-            "data_type": "forecast",
-            "model": "GFS",
-            "resolution": "0.25 degree",
-            "requested_coordinates": {"latitude": lat, "longitude": lon},
-            "grid_coordinates": {
-                "latitude": records[next(iter(records))]["latitude"],
-                "longitude": records[next(iter(records))]["longitude"],
-            },
-            "forecast_initialization_time_utc": f"{date_text[:4]}-{date_text[4:6]}-{date_text[6:]}T{cycle:02d}:00:00Z",
-            "valid_time_utc": datetime.strptime(
-                f"{records[next(iter(records))]['validity_date']}{records[next(iter(records))]['validity_time']:04d}",
-                "%Y%m%d%H%M"
-            ).replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
-            "forecast_step_hours": records[next(iter(records))]["end_step"],
-            "environment": {
-                "air_temperature_c": celsius("2t"),
-                "dew_point_c": celsius("2d"),
-                "wind_u_ms": u,
-                "wind_v_ms": v,
-                "wind_speed_ms": wind,
-            },
-            "provenance": {
-                "provider": "NOAA / NCEP",
-                "endpoint": NOMADS,
-                "variables": sorted(records.keys()),
-                "retrieved_at": now.isoformat().replace("+00:00", "Z"),
-            },
-            "quality": {
-                "status": "raw_grib_nearest_grid_point",
-                "missing_fields": [
-                    k for k, v in {
-                        "air_temperature_c": celsius("2t"),
-                        "dew_point_c": celsius("2d"),
-                        "wind_u_ms": u,
-                        "wind_v_ms": v,
-                        "wind_speed_ms": wind,
-                    }.items() if v is None
-                ],
-            },
-        }
-
-        body = json.dumps(result)
+        params={k:v[0] for k,v in parse_qs(urlparse(self.path).query).items()}
+        request=type('Request',(),{'args':params})()
 
         try:
-            from vercel import Response
-            return Response(body, status=200, headers={"Content-Type": "application/json"})
-        except Exception:
-            return {"statusCode": 200, "headers": {"Content-Type": "application/json"}, "body": body}
+            params = getattr(request, "args", {}) or {}
+            lat = float(params.get("latitude"))
+            lon = float(params.get("longitude"))
 
-    except Exception as exc:
-        body = json.dumps({
-            "source": "NOAA GFS",
-            "source_id": "noaa_gfs_0p25",
-            "status": "error",
-            "error": str(exc),
-        })
-        try:
-            from vercel import Response
-            return Response(body, status=502, headers={"Content-Type": "application/json"})
-        except Exception:
-            return {"statusCode": 502, "headers": {"Content-Type": "application/json"}, "body": body}
+            if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+                raise ValueError("Invalid latitude/longitude.")
+
+            now = datetime.now(timezone.utc)
+            date_text, cycle = _find_cycle(now, lat, lon)
+
+            query = {
+                "file": f"gfs.t{cycle:02d}z.pgrb2.0p25.f003",
+                "var_TMP": "on",
+                "var_DPT": "on",
+                "var_UGRD": "on",
+                "var_VGRD": "on",
+                "lev_2_m_above_ground": "on",
+                "lev_10_m_above_ground": "on",
+                "leftlon": lon - 0.5,
+                "rightlon": lon + 0.5,
+                "toplat": lat + 0.5,
+                "bottomlat": lat - 0.5,
+                "dir": f"/gfs.{date_text}/{cycle:02d}/atmos",
+            }
+
+            url = NOMADS + "?" + urllib.parse.urlencode(query)
+            blob = _get(url)
+            records = _parse_grib(blob, lat, lon)
+
+            if not records:
+                raise RuntimeError("GFS response contained no usable requested variables.")
+
+            def celsius(key):
+                return records[key]["value"] - 273.15 if key in records else None
+
+            u = records.get("10u", {}).get("value")
+            v = records.get("10v", {}).get("value")
+            wind = math.hypot(u, v) if u is not None and v is not None else None
+
+            result = {
+                "source": "NOAA GFS",
+                "source_id": "noaa_gfs_0p25",
+                "data_type": "forecast",
+                "model": "GFS",
+                "resolution": "0.25 degree",
+                "requested_coordinates": {"latitude": lat, "longitude": lon},
+                "grid_coordinates": {
+                    "latitude": records[next(iter(records))]["latitude"],
+                    "longitude": records[next(iter(records))]["longitude"],
+                },
+                "forecast_initialization_time_utc": f"{date_text[:4]}-{date_text[4:6]}-{date_text[6:]}T{cycle:02d}:00:00Z",
+                "valid_time_utc": datetime.strptime(
+                    f"{records[next(iter(records))]['validity_date']}{records[next(iter(records))]['validity_time']:04d}",
+                    "%Y%m%d%H%M"
+                ).replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
+                "forecast_step_hours": records[next(iter(records))]["end_step"],
+                "environment": {
+                    "air_temperature_c": celsius("2t"),
+                    "dew_point_c": celsius("2d"),
+                    "wind_u_ms": u,
+                    "wind_v_ms": v,
+                    "wind_speed_ms": wind,
+                },
+                "provenance": {
+                    "provider": "NOAA / NCEP",
+                    "endpoint": NOMADS,
+                    "variables": sorted(records.keys()),
+                    "retrieved_at": now.isoformat().replace("+00:00", "Z"),
+                },
+                "quality": {
+                    "status": "raw_grib_nearest_grid_point",
+                    "missing_fields": [
+                        k for k, v in {
+                            "air_temperature_c": celsius("2t"),
+                            "dew_point_c": celsius("2d"),
+                            "wind_u_ms": u,
+                            "wind_v_ms": v,
+                            "wind_speed_ms": wind,
+                        }.items() if v is None
+                    ],
+                },
+            }
+
+            body = json.dumps(result)
+
+            try:
+                from vercel import Response
+                return Response(body, status=200, headers={"Content-Type": "application/json"})
+            except Exception:
+                return {"statusCode": 200, "headers": {"Content-Type": "application/json"}, "body": body}
+
+        except Exception as exc:
+            body = json.dumps({
+                "source": "NOAA GFS",
+                "source_id": "noaa_gfs_0p25",
+                "status": "error",
+                "error": str(exc),
+            })
+            try:
+                from vercel import Response
+                return Response(body, status=502, headers={"Content-Type": "application/json"})
+            except Exception:
+                return {"statusCode": 502, "headers": {"Content-Type": "application/json"}, "body": body}
