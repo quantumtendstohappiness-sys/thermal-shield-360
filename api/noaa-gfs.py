@@ -9,7 +9,6 @@ from datetime import datetime, timezone, timedelta
 
 NOMADS = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
 SFLUX = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_sflux.pl"
-SFLUX = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_sflux.pl"
 
 
 def _get(url):
@@ -103,11 +102,6 @@ def _parse_grib(blob, requested_lat, requested_lon):
                         (short_name in ("2t", "2d", "2r") and level == 2)
                         or
                         (short_name in ("10u", "10v") and level == 10)
-                        or
-                        (
-                            short_name == "dswrf"
-                            and type_of_level == "surface"
-                        )
                     )
 
                     if not wanted:
@@ -132,7 +126,7 @@ def _parse_grib(blob, requested_lat, requested_lon):
 
                     value = float(values[best])
 
-                    records["dswrf"] = {
+                    records[short_name] = {
                         "value": value,
                         "native_value": value,
                         "unit": str(codes_get(handle, "units")),
@@ -142,8 +136,12 @@ def _parse_grib(blob, requested_lat, requested_lon):
                         "step_type": codes_get(handle, "stepType"),
                         "start_step": codes_get(handle, "startStep"),
                         "end_step": codes_get(handle, "endStep"),
+                        "latitude": float(latitudes[best]),
+                        "longitude": float(longitudes[best]),
                         "grid_latitude": float(latitudes[best]),
                         "grid_longitude": float(longitudes[best]),
+                        "validity_date": codes_get(handle, "validityDate"),
+                        "validity_time": codes_get(handle, "validityTime"),
                     }
 
                 finally:
@@ -153,6 +151,7 @@ def _parse_grib(blob, requested_lat, requested_lon):
         os.unlink(path)
 
     return records
+
 
 def _fetch_sflux_dswrf(date_text, cycle, lat, lon, forecast_step=3):
     import os
@@ -425,7 +424,6 @@ def _gfs_handler(request):
             "provenance": {
                 "provider": "NOAA / NCEP",
                 "endpoint": NOMADS,
-                "sflux_endpoint": SFLUX,
                 "sflux_endpoint": SFLUX,
                 "variables": sorted(
                     records.keys()
