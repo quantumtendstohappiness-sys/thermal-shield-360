@@ -102,6 +102,11 @@ def _parse_grib(blob, requested_lat, requested_lon):
                         (short_name in ("2t", "2d", "2r") and level == 2)
                         or
                         (short_name in ("10u", "10v") and level == 10)
+                        or
+                        (
+                            short_name == "dswrf"
+                            and type_of_level == "surface"
+                        )
                     )
 
                     if not wanted:
@@ -126,7 +131,7 @@ def _parse_grib(blob, requested_lat, requested_lon):
 
                     value = float(values[best])
 
-                    records[short_name] = {
+                    records["dswrf"] = {
                         "value": value,
                         "native_value": value,
                         "unit": str(codes_get(handle, "units")),
@@ -136,12 +141,8 @@ def _parse_grib(blob, requested_lat, requested_lon):
                         "step_type": codes_get(handle, "stepType"),
                         "start_step": codes_get(handle, "startStep"),
                         "end_step": codes_get(handle, "endStep"),
-                        "latitude": float(latitudes[best]),
-                        "longitude": float(longitudes[best]),
                         "grid_latitude": float(latitudes[best]),
                         "grid_longitude": float(longitudes[best]),
-                        "validity_date": codes_get(handle, "validityDate"),
-                        "validity_time": codes_get(handle, "validityTime"),
                     }
 
                 finally:
@@ -151,7 +152,6 @@ def _parse_grib(blob, requested_lat, requested_lon):
         os.unlink(path)
 
     return records
-
 
 def _fetch_sflux_dswrf(date_text, cycle, lat, lon, forecast_step=3):
     import os
