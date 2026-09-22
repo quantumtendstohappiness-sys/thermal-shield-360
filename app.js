@@ -991,7 +991,12 @@ async function loadGFS(latitude, longitude, loadSequence) {
       gfsSummary.hidden = false;
       const view = normalized.properties || normalized;
             const env = view.environment || {};
-            const grid = view.source_grid || {};
+            const location = view.location || {};
+            const grid = location.source_grid || {};
+            const requested = location.requested_coordinate || {};
+            const gfsVariables = Array.isArray(view.provenance?.variables) ? view.provenance.variables : [];
+            const windULineage = gfsVariables.find(v => v?.canonical_variable === "wind_u");
+            const windVLineage = gfsVariables.find(v => v?.canonical_variable === "wind_v");
             const time = view.time || {};
             const prov = view.provenance || {};
             const quality = view.quality || {};
@@ -1001,15 +1006,15 @@ async function loadGFS(latitude, longitude, loadSequence) {
                     <div><strong>Source</strong><span>NOAA GFS / NCEP</span></div>
                     <div><strong>Model</strong><span>GFS</span></div>
                     <div><strong>Resolution</strong><span>0.25°</span></div>
-                    <div><strong>Requested Location</strong><span>${show(view.requested_coordinate)}</span></div>
+                    <div><strong>Requested Location</strong><span>${show(requested.latitude)}, ${show(requested.longitude)}</span></div>
                     <div><strong>Nearest GFS Grid</strong><span>${show(grid.latitude)}, ${show(grid.longitude)}</span></div>
                     <div><strong>Forecast Initialization</strong><span>${show(time.forecast_initialization_time)}</span></div>
                     <div><strong>Forecast Valid Time</strong><span>${show(time.forecast_valid_time)}</span></div>
                     <div><strong>Forecast Step</strong><span>${show(time.forecast_step ?? time.forecast_lead_hours)} hours</span></div>
                     <div><strong>Air Temperature</strong><span>${show(env.air_temperature_c)} °C</span></div>
                     <div><strong>Dew Point</strong><span>${show(env.dew_point_c)} °C</span></div>
-                    <div><strong>Wind U</strong><span>${show(env.wind_u_ms)} m/s</span></div>
-                    <div><strong>Wind V</strong><span>${show(env.wind_v_ms)} m/s</span></div>
+                    <div><strong>Wind U</strong><span>${show(windULineage?.normalized_value ?? windULineage?.native_value)} m/s</span></div>
+                    <div><strong>Wind V</strong><span>${show(windVLineage?.normalized_value ?? windVLineage?.native_value)} m/s</span></div>
                     <div><strong>Wind Speed</strong><span>${show(env.wind_speed_ms)} m/s</span></div>
                     <div><strong>Relative Humidity</strong><span>${show(env.relative_humidity_pct)} %</span></div>
                     <div><strong>Solar Radiation</strong><span>${show(env.solar_radiation_wm2)} W/m²</span></div>
