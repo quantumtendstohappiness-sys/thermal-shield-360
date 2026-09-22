@@ -114,6 +114,7 @@ def _gfs_handler(request):
             "var_VGRD": "on",
             "var_RH": "on",
             "var_DSWRF": "on",
+        "lev_surface": "on",
             "lev_2_m_above_ground": "on",
             "lev_10_m_above_ground": "on",
             "leftlon": lon - 0.5,
