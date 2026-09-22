@@ -1,3 +1,4 @@
+from http.server import BaseHTTPRequestHandler
 import json, math, os, tempfile, urllib.parse, urllib.request
 from datetime import datetime, timezone, timedelta
 
@@ -92,7 +93,11 @@ def _parse_grib(blob, requested_lat, requested_lon):
         if temp_path and os.path.exists(temp_path):
             os.unlink(temp_path)
 
-def handler(request):
+class handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        from urllib.parse import urlparse, parse_qs
+        params = {k: v[0] for k,v in parse_qs(urlparse(self.path).query).items()}
+        request = type('Request', (), {'args': params})()
     try:
         params = getattr(request, "args", {}) or {}
         lat = float(params.get("latitude"))
