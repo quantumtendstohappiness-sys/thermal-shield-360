@@ -1,12 +1,23 @@
-import json, math, os, tempfile, urllib.parse, urllib.request
+import json
+import math
+import os
+import tempfile
+import urllib.parse
+import urllib.request
 from datetime import datetime, timezone, timedelta
 
 NOMADS = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
+SFLUX = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_sflux.pl"
+
 
 def _get(url):
-    req = urllib.request.Request(url, headers={"User-Agent": "ThermaShield360/1.0"})
+    req = urllib.request.Request(
+        url,
+        headers={"User-Agent": "ThermaShield360/1.0"}
+    )
     with urllib.request.urlopen(req, timeout=30) as r:
         return r.read()
+
 
 def _find_cycle(now, lat, lon):
     now = now.astimezone(timezone.utc)
@@ -25,9 +36,12 @@ def _find_cycle(now, lat, lon):
 
         test_url = (
             f"{NOMADS}?file=gfs.t{cycle}z.pgrb2.0p25.f003"
-            f"&var_TMP=on&lev_2_m_above_ground=on"
-            f"&leftlon=73.5&rightlon=74.5"
-            f"&toplat=20.5&bottomlat=19.5"
+            f"&var_TMP=on"
+            f"&lev_2_m_above_ground=on"
+            f"&leftlon={lon - 0.5}"
+            f"&rightlon={lon + 0.5}"
+            f"&toplat={lat + 0.5}"
+            f"&bottomlat={lat - 0.5}"
             f"&dir=%2Fgfs.{date_text}%2F{cycle}%2Fatmos"
         )
 
@@ -37,45 +51,83 @@ def _find_cycle(now, lat, lon):
         except Exception:
             continue
 
-    raise RuntimeError("No current GFS 0.25 degree forecast file is available.")
+    raise RuntimeError(
+        "No current GFS 0.25 degree forecast file is available."
+    )
+
 
 def _parse_grib(blob, requested_lat, requested_lon):
-    from eccodes import codes_grib_new_from_file, codes_get, codes_get_array, codes_release
+    from eccodes import (
+        codes_grib_new_from_file,
+        codes_get,
+        codes_get_array,
+        codes_release,
+    )
 
     temp_path = None
+
     try:
-        with tempfile.NamedTemporaryFile(mode="wb", suffix=".grib2", delete=False) as temp:
+        with tempfile.NamedTemporaryFile(
+            mode="wb",
+            suffix=".grib2",
+            delete=False
+        ) as temp:
             temp.write(blob)
             temp.flush()
             temp_path = temp.name
 
         records = {}
+
         with open(temp_path, "rb") as f:
             while True:
                 handle = codes_grib_new_from_file(f)
+
                 if handle is None:
                     break
+
                 try:
-                    short_name = codes_get(handle, "shortName")
+                    short_name = str(
+                        codes_get(handle, "shortName")
+                    ).strip().lower()
+
                     level = codes_get(handle, "level")
-                    values = codes_get_array(handle, "values")
-                    latitudes = codes_get_array(handle, "latitudes")
-                    longitudes = codes_get_array(handle, "longitudes")
+
+                    values = codes_get_array(
+                        handle,
+                        "values"
+                    )
+
+                    latitudes = codes_get_array(
+                        handle,
+                        "latitudes"
+                    )
+
+                    longitudes = codes_get_array(
+                        handle,
+                        "longitudes"
+                    )
 
                     wanted_level = (
-                        (short_name in ("2t", "2d") and level == 2)
-                        or (short_name in ("10u", "10v") and level == 10)
-                        or (short_name == "2r" and level == 2)
-                        or (str(short_name).strip().lower() == "dswrf")
+                        (short_name in ("2t", "2d", "2r")
+                         and level == 2)
+                        or
+                        (short_name in ("10u", "10v")
+                         and level == 10)
+                        or
+                        (short_name == "dswrf")
                     )
+
                     if not wanted_level:
                         continue
 
                     best = min(
                         range(len(values)),
                         key=lambda i:
-                            (float(latitudes[i]) - requested_lat) ** 2
-                            + (float(longitudes[i]) - requested_lon) ** 2
+                            (
+                                (float(latitudes[i]) - requested_lat) ** 2
+                                +
+                                (float(longitudes[i]) - requested_lon) ** 2
+                            )
                     )
 
                     records[short_name] = {
@@ -84,39 +136,37 @@ def _parse_grib(blob, requested_lat, requested_lon):
                         "latitude": float(latitudes[best]),
                         "longitude": float(longitudes[best]),
                         "end_step": codes_get(handle, "endStep"),
-                        "validity_date": codes_get(handle, "validityDate"),
-                        "validity_time": codes_get(handle, "validityTime"),
+                        "validity_date": codes_get(
+                            handle,
+                            "validityDate"
+                        ),
+                        "validity_time": codes_get(
+                            handle,
+                            "validityTime"
+                        ),
                     }
+
                 finally:
                     codes_release(handle)
+
         return records
+
     finally:
         if temp_path and os.path.exists(temp_path):
             os.unlink(temp_path)
 
-def _gfs_handler(request):
+
+def _fetch_sflux_dswrf(date_text, cycle, lat, lon, forecast_step):
     try:
-        params = getattr(request, "args", {}) or {}
-        lat = float(params.get("latitude"))
-        lon = float(params.get("longitude"))
-
-        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
-            raise ValueError("Invalid latitude/longitude.")
-
-        now = datetime.now(timezone.utc)
-        date_text, cycle = _find_cycle(now, lat, lon)
+        step = int(forecast_step)
 
         query = {
-            "file": f"gfs.t{cycle:02d}z.pgrb2.0p25.f003",
-            "var_TMP": "on",
-            "var_DPT": "on",
-            "var_UGRD": "on",
-            "var_VGRD": "on",
-            "var_RH": "on",
+            "file": (
+                f"gfs.t{cycle:02d}z."
+                f"sfluxgrbf{step:03d}.grib2"
+            ),
             "var_DSWRF": "on",
-        "lev_surface": "on",
-            "lev_2_m_above_ground": "on",
-            "lev_10_m_above_ground": "on",
+            "lev_surface": "on",
             "leftlon": lon - 0.5,
             "rightlon": lon + 0.5,
             "toplat": lat + 0.5,
@@ -124,19 +174,160 @@ def _gfs_handler(request):
             "dir": f"/gfs.{date_text}/{cycle:02d}/atmos",
         }
 
-        url = NOMADS + "?" + urllib.parse.urlencode(query)
+        url = (
+            SFLUX
+            + "?"
+            + urllib.parse.urlencode(query)
+        )
+
         blob = _get(url)
-        records = _parse_grib(blob, lat, lon)
+
+        records = _parse_grib(
+            blob,
+            lat,
+            lon
+        )
+
+        return records.get("dswrf")
+
+    except Exception:
+        return None
+
+
+def _gfs_handler(request):
+    try:
+        params = getattr(request, "args", {}) or {}
+
+        lat = float(params.get("latitude"))
+        lon = float(params.get("longitude"))
+
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            raise ValueError(
+                "Invalid latitude/longitude."
+            )
+
+        now = datetime.now(timezone.utc)
+
+        date_text, cycle = _find_cycle(
+            now,
+            lat,
+            lon
+        )
+
+        query = {
+            "file": (
+                f"gfs.t{cycle:02d}z."
+                f"pgrb2.0p25.f003"
+            ),
+            "var_TMP": "on",
+            "var_DPT": "on",
+            "var_UGRD": "on",
+            "var_VGRD": "on",
+            "var_RH": "on",
+            "lev_2_m_above_ground": "on",
+            "lev_10_m_above_ground": "on",
+            "leftlon": lon - 0.5,
+            "rightlon": lon + 0.5,
+            "toplat": lat + 0.5,
+            "bottomlat": lat - 0.5,
+            "dir": (
+                f"/gfs.{date_text}/"
+                f"{cycle:02d}/atmos"
+            ),
+        }
+
+        url = (
+            NOMADS
+            + "?"
+            + urllib.parse.urlencode(query)
+        )
+
+        blob = _get(url)
+
+        records = _parse_grib(
+            blob,
+            lat,
+            lon
+        )
 
         if not records:
-            raise RuntimeError("GFS response contained no usable requested variables.")
+            raise RuntimeError(
+                "GFS response contained no usable "
+                "requested variables."
+            )
+
+        first_key = next(iter(records))
+
+        forecast_step = records[
+            first_key
+        ]["end_step"]
+
+        dswrf = _fetch_sflux_dswrf(
+            date_text,
+            cycle,
+            lat,
+            lon,
+            forecast_step
+        )
+
+        if dswrf is not None:
+            records["dswrf"] = dswrf
 
         def celsius(key):
-            return records[key]["value"] - 273.15 if key in records else None
+            if key not in records:
+                return None
 
-        u = records.get("10u", {}).get("value")
-        v = records.get("10v", {}).get("value")
-        wind = math.hypot(u, v) if u is not None and v is not None else None
+            return (
+                records[key]["value"]
+                - 273.15
+            )
+
+        u = records.get(
+            "10u",
+            {}
+        ).get("value")
+
+        v = records.get(
+            "10v",
+            {}
+        ).get("value")
+
+        wind = (
+            math.hypot(u, v)
+            if u is not None and v is not None
+            else None
+        )
+
+        rh = records.get(
+            "2r",
+            {}
+        ).get("value")
+
+        solar = records.get(
+            "dswrf",
+            {}
+        ).get("value")
+
+        grid_lat = records[
+            first_key
+        ]["latitude"]
+
+        grid_lon = records[
+            first_key
+        ]["longitude"]
+
+        valid_time = datetime.strptime(
+            (
+                f"{records[first_key]['validity_date']}"
+                f"{records[first_key]['validity_time']:04d}"
+            ),
+            "%Y%m%d%H%M"
+        ).replace(
+            tzinfo=timezone.utc
+        ).isoformat().replace(
+            "+00:00",
+            "Z"
+        )
 
         result = {
             "source": "NOAA GFS",
@@ -144,55 +335,89 @@ def _gfs_handler(request):
             "data_type": "forecast",
             "model": "GFS",
             "resolution": "0.25 degree",
-            "requested_coordinates": {"latitude": lat, "longitude": lon},
-            "grid_coordinates": {
-                "latitude": records[next(iter(records))]["latitude"],
-                "longitude": records[next(iter(records))]["longitude"],
+
+            "requested_coordinates": {
+                "latitude": lat,
+                "longitude": lon,
             },
-            "forecast_initialization_time_utc": f"{date_text[:4]}-{date_text[4:6]}-{date_text[6:]}T{cycle:02d}:00:00Z",
-            "valid_time_utc": datetime.strptime(
-                f"{records[next(iter(records))]['validity_date']}{records[next(iter(records))]['validity_time']:04d}",
-                "%Y%m%d%H%M"
-            ).replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
-            "forecast_step_hours": records[next(iter(records))]["end_step"],
+
+            "grid_coordinates": {
+                "latitude": grid_lat,
+                "longitude": grid_lon,
+            },
+
+            "forecast_initialization_time_utc": (
+                f"{date_text[:4]}-"
+                f"{date_text[4:6]}-"
+                f"{date_text[6:]}T"
+                f"{cycle:02d}:00:00Z"
+            ),
+
+            "valid_time_utc": valid_time,
+
+            "forecast_step_hours": forecast_step,
+
             "environment": {
                 "air_temperature_c": celsius("2t"),
                 "dew_point_c": celsius("2d"),
                 "wind_u_ms": u,
                 "wind_v_ms": v,
                 "wind_speed_ms": wind,
-                    "relative_humidity_pct": records.get("2r", {}).get("value"),
-                    "solar_radiation_wm2": records.get("dswrf", {}).get("value"),
+                "relative_humidity_pct": rh,
+                "solar_radiation_wm2": solar,
             },
+
             "provenance": {
                 "provider": "NOAA / NCEP",
                 "endpoint": NOMADS,
-                "variables": sorted(records.keys()),
-                "retrieved_at": now.isoformat().replace("+00:00", "Z"),
+                "sflux_endpoint": SFLUX,
+                "variables": sorted(
+                    records.keys()
+                ),
+                "retrieved_at": (
+                    now.isoformat()
+                    .replace("+00:00", "Z")
+                ),
             },
+
             "quality": {
                 "status": "raw_grib_nearest_grid_point",
+
                 "missing_fields": [
-                    k for k, v in {
-                        "air_temperature_c": celsius("2t"),
-                        "dew_point_c": celsius("2d"),
-                        "wind_u_ms": u,
-                        "wind_v_ms": v,
-                        "wind_speed_ms": wind,
-                        "relative_humidity_pct": records.get("2r", {}).get("value"),
-                        "solar_radiation_wm2": records.get("dswrf", {}).get("value"),
-                    }.items() if v is None
+                    key
+                    for key, value in {
+                        "air_temperature_c":
+                            celsius("2t"),
+                        "dew_point_c":
+                            celsius("2d"),
+                        "wind_u_ms":
+                            u,
+                        "wind_v_ms":
+                            v,
+                        "wind_speed_ms":
+                            wind,
+                        "relative_humidity_pct":
+                            rh,
+                        "solar_radiation_wm2":
+                            solar,
+                    }.items()
+                    if value is None
                 ],
             },
         }
 
         body = json.dumps(result)
 
-        try:
-            
-            return {"statusCode":200,"headers":{"Content-Type":"application/json"},"body":body}
-        except Exception:
-            return {"statusCode": 200, "headers": {"Content-Type": "application/json"}, "body": body}
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Content-Type":
+                    "application/json",
+                "Cache-Control":
+                    "no-store, no-cache, must-revalidate",
+            },
+            "body": body,
+        }
 
     except Exception as exc:
         body = json.dumps({
@@ -201,25 +426,74 @@ def _gfs_handler(request):
             "status": "error",
             "error": str(exc),
         })
-        try:
-            
-            return {"statusCode":502,"headers":{"Content-Type":"application/json"},"body":body}
-        except Exception:
-            return {"statusCode": 502, "headers": {"Content-Type": "application/json"}, "body": body}
+
+        return {
+            "statusCode": 502,
+            "headers": {
+                "Content-Type":
+                    "application/json",
+                "Cache-Control":
+                    "no-store",
+            },
+            "body": body,
+        }
 
 
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 
+
 class handler(BaseHTTPRequestHandler):
+
     def do_GET(self):
-        params={k:v[0] for k,v in parse_qs(urlparse(self.path).query).items()}
-        request=type("Request",(),{"args":params})()
-        result=_gfs_handler(request)
-        status=result.get("statusCode",200) if isinstance(result,dict) else 200
-        body=result.get("body","") if isinstance(result,dict) else str(result)
+        params = {
+            k: v[0]
+            for k, v in parse_qs(
+                urlparse(self.path).query
+            ).items()
+        }
+
+        request = type(
+            "Request",
+            (),
+            {"args": params}
+        )()
+
+        result = _gfs_handler(request)
+
+        status = (
+            result.get("statusCode", 200)
+            if isinstance(result, dict)
+            else 200
+        )
+
+        body = (
+            result.get("body", "")
+            if isinstance(result, dict)
+            else str(result)
+        )
+
         self.send_response(status)
-        self.send_header("Content-Type","application/json")
-        self.send_header("Access-Control-Allow-Origin","*")
+
+        self.send_header(
+            "Content-Type",
+            "application/json"
+        )
+
+        self.send_header(
+            "Access-Control-Allow-Origin",
+            "*"
+        )
+
+        self.send_header(
+            "Cache-Control",
+            "no-store, no-cache, must-revalidate"
+        )
+
         self.end_headers()
-        self.wfile.write(body.encode("utf-8") if isinstance(body,str) else body)
+
+        self.wfile.write(
+            body.encode("utf-8")
+            if isinstance(body, str)
+            else body
+        )
