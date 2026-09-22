@@ -1,1 +1,0 @@
-{"rewrites":[{"source":"/api/noaa-gfs","destination":"/api/noaa_gfs.py"}]}
