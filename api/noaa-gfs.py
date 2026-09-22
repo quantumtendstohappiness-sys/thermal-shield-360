@@ -1,3 +1,4 @@
+from eccodes import codes_grib_new_from_file, codes_get, codes_get_array, codes_release
 import json
 import math
 import os
@@ -154,6 +155,9 @@ def _parse_grib(blob, requested_lat, requested_lon):
     return records
 
 def _fetch_sflux_dswrf(date_text, cycle, lat, lon, forecast_step=3):
+    import os
+    import tempfile
+
     query = {
         "file": (
             f"gfs.t{cycle:02d}z."
@@ -168,19 +172,82 @@ def _fetch_sflux_dswrf(date_text, cycle, lat, lon, forecast_step=3):
         "dir": f"/gfs.{date_text}/{cycle:02d}/atmos",
     }
 
-    url = (
-        SFLUX
-        + "?"
-        + urllib.parse.urlencode(query)
-    )
+    url = SFLUX + "?" + urllib.parse.urlencode(query)
+    blob = _get(url)
 
-    records = _parse_grib(
-        _get(url),
-        lat,
-        lon
-    )
+    fd, path = tempfile.mkstemp(suffix=".grib2")
 
-    return records.get("dswrf")
+    try:
+        with os.fdopen(fd, "wb") as out:
+            out.write(blob)
+
+        best = None
+
+        with open(path, "rb") as f:
+            while True:
+                handle = codes_grib_new_from_file(f)
+                if handle is None:
+                    break
+
+                try:
+                    short_name = str(
+                        codes_get(handle, "shortName")
+                    ).strip().lower()
+
+                    if short_name != "dswrf":
+                        continue
+
+                    values = codes_get_array(handle, "values")
+                    lats = codes_get_array(handle, "latitudes")
+                    lons = codes_get_array(handle, "longitudes")
+
+                    if len(values) == 0:
+                        continue
+
+                    i = min(
+                        range(len(values)),
+                        key=lambda j:
+                            (
+                                (float(lats[j]) - float(lat)) ** 2
+                                +
+                                (float(lons[j]) - float(lon)) ** 2
+                            )
+                    )
+
+                    candidate = {
+                        "value": float(values[i]),
+                        "native_value": float(values[i]),
+                        "unit": str(codes_get(handle, "units")),
+                        "name": str(codes_get(handle, "name")),
+                        "level": codes_get(handle, "level"),
+                        "type_of_level": str(
+                            codes_get(handle, "typeOfLevel")
+                        ),
+                        "step_type": codes_get(handle, "stepType"),
+                        "start_step": codes_get(handle, "startStep"),
+                        "end_step": codes_get(handle, "endStep"),
+                        "grid_latitude": float(lats[i]),
+                        "grid_longitude": float(lons[i]),
+                    }
+
+                    # Prefer the accumulated/average DSWRF record
+                    # corresponding to the requested forecast interval.
+                    if (
+                        best is None
+                        or candidate["end_step"] == forecast_step
+                    ):
+                        best = candidate
+
+                finally:
+                    codes_release(handle)
+
+        if best is None:
+            return None
+
+        return best
+
+    finally:
+        os.unlink(path)
 
 def _gfs_handler(request):
     try:
