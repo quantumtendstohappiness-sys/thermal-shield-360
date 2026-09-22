@@ -66,7 +66,7 @@ def _parse_grib(blob, requested_lat, requested_lon):
                         (short_name in ("2t", "2d") and level == 2)
                         or (short_name in ("10u", "10v") and level == 10)
                         or (short_name == "2r" and level == 2)
-                        or (short_name == "dswrf" and str(level).strip().lower() in {"0","surface","sfc"})
+                        or (str(short_name).strip().lower() == "dswrf")
                     )
                     if not wanted_level:
                         continue
