@@ -8,6 +8,7 @@ from datetime import datetime, timezone, timedelta
 
 NOMADS = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_0p25.pl"
 SFLUX = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_sflux.pl"
+SFLUX = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_sflux.pl"
 
 
 def _get(url):
@@ -165,8 +166,6 @@ def _fetch_sflux_dswrf(date_text, cycle, lat, lon, forecast_step):
                 f"gfs.t{cycle:02d}z."
                 f"sfluxgrbf{step:03d}.grib2"
             ),
-            "var_DSWRF": "on",
-            "lev_surface": "on",
             "leftlon": lon - 0.5,
             "rightlon": lon + 0.5,
             "toplat": lat + 0.5,
@@ -193,6 +192,20 @@ def _fetch_sflux_dswrf(date_text, cycle, lat, lon, forecast_step):
     except Exception:
         return None
 
+
+def _fetch_sflux_dswrf(date_text, cycle, lat, lon, forecast_step=3):
+    query = {
+        "file": f"gfs.t{cycle:02d}z.sfluxgrbf{forecast_step:03d}.grib2",
+        "var_DSWRF": "on",
+        "lev_surface": "on",
+        "leftlon": lon - 0.5,
+        "rightlon": lon + 0.5,
+        "toplat": lat + 0.5,
+        "bottomlat": lat - 0.5,
+        "dir": f"/gfs.{date_text}/{cycle:02d}/atmos",
+    }
+    url = SFLUX + "?" + urllib.parse.urlencode(query)
+    return _parse_grib(_get(url), lat, lon)
 
 def _gfs_handler(request):
     try:
@@ -370,6 +383,7 @@ def _gfs_handler(request):
             "provenance": {
                 "provider": "NOAA / NCEP",
                 "endpoint": NOMADS,
+                "sflux_endpoint": SFLUX,
                 "sflux_endpoint": SFLUX,
                 "variables": sorted(
                     records.keys()
