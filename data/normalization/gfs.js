@@ -83,14 +83,19 @@ function normalizeGFSPayload(rawPayload) {
     ? environment.wind_speed_ms
     : (u !== null && v !== null ? Math.hypot(u, v) : null);
 
+  const rh = finite(environment.relative_humidity_pct)
+    ? environment.relative_humidity_pct : null;
+  const solar = finite(environment.solar_radiation_wm2)
+    ? environment.solar_radiation_wm2 : null;
+
   const missing = [];
   if (air === null) missing.push("environment.air_temperature_c");
   if (dew === null) missing.push("environment.dew_point_c");
   if (wind === null) missing.push("environment.wind_speed_ms");
+  if (rh === null) missing.push("environment.relative_humidity_pct");
+  if (solar === null) missing.push("environment.solar_radiation_wm2");
 
   const unavailable = [
-    "environment.relative_humidity_pct",
-    "environment.solar_radiation_wm2",
     "environment.wind_direction_deg",
     "environment.pressure_hpa",
     "environment.rainfall_mm",
@@ -129,15 +134,17 @@ function normalizeGFSPayload(rawPayload) {
       validTime, initialization, validTime, step, grid, rawRef
     ),
     lineage(
-      "relative_humidity_pct", "not supplied", null, null, null, "%",
-      "missing",
-      "NOAA GFS endpoint does not supply normalized RH in this mapping; no RH fabricated.",
+      "relative_humidity_pct", "2r", rh, "%",
+      rh, "%",
+      rh === null ? "missing" : "source",
+      null,
       validTime, initialization, validTime, step, grid, rawRef
     ),
     lineage(
-      "solar_radiation_wm2", "not supplied", null, null, null, "W/m2",
-      "missing",
-      "NOAA GFS endpoint does not supply solar radiation in this mapping; no radiation fabricated.",
+      "solar_radiation_wm2", "dswrf", solar, "W/m2",
+      solar, "W/m2",
+      solar === null ? "missing" : "source",
+      null,
       validTime, initialization, validTime, step, grid, rawRef
     )
   ];
@@ -162,12 +169,12 @@ function normalizeGFSPayload(rawPayload) {
     },
     environment: {
       air_temperature_c: air,
-      relative_humidity_pct: null,
+      relative_humidity_pct: rh,
       wind_speed_ms: wind,
       wind_direction_deg: null,
       dew_point_c: dew,
       pressure_hpa: null,
-      solar_radiation_wm2: null,
+      solar_radiation_wm2: solar,
       surface_temperature_c: null,
       rainfall_mm: null
     },
