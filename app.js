@@ -760,6 +760,7 @@ async function loadWeather() {
 
   const loadSequence = ++weatherLoadSequence;
   const { name, latitude, longitude } = requestLocation;
+  loadOpenMeteo(latitude, longitude, loadSequence);
   const locationLabel = `${latitude}, ${longitude}`;
   $("status").textContent =
     `Loading BOTH NASA POWER and ECMWF Open Data for ${name} ` +
