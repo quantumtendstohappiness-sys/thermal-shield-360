@@ -709,6 +709,43 @@ async function loadNASA(latitude, longitude, loadSequence) {
   }
 }
 
+
+async function loadOpenMeteo(latitude, longitude, loadSequence) {
+  const host = document.querySelector("main") || document.body;
+  let card = document.getElementById("openMeteoCard");
+  if (!card) {
+    card = document.createElement("section");
+    card.id = "openMeteoCard";
+    card.style.cssText = "margin:16px 0;padding:16px;border:1px solid #ccc;border-radius:12px;background:#fff;";
+    host.appendChild(card);
+  }
+  card.innerHTML = "<strong>Open-Meteo</strong><div>Loading selected location…</div>";
+  try {
+    const raw = await window.fetchOpenMeteo(latitude, longitude);
+    if (loadSequence !== weatherLoadSequence) return { source: "Open-Meteo", status: "stale" };
+    const normalized = window.normalizeOpenMeteoRecord(raw);
+    registerThermalShieldFusionSource(normalized);
+    const e = normalized.environment || {};
+    card.innerHTML = `
+      <strong>Open-Meteo</strong>
+      <div>Located: ${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}</div>
+      <div>Timestamp: ${normalized.time?.timestamp || "Not supplied"}</div>
+      <hr>
+      <div>Temperature: ${e.air_temperature_c ?? "Not supplied"} °C</div>
+      <div>Relative Humidity: ${e.relative_humidity_pct ?? "Not supplied"} %</div>
+      <div>Dew Point: ${e.dew_point_c ?? "Not supplied"} °C</div>
+      <div>Wind Speed: ${e.wind_speed_ms ?? "Not supplied"} m/s</div>
+      <div>Shortwave Solar Radiation: ${e.solar_radiation_wm2 ?? "Not supplied"} W/m²</div>
+      <div>Status: ${normalized.quality?.quality_flag || "unknown"}</div>
+      <small>Source: Open-Meteo • values preserved without source substitution</small>
+    `;
+    return { source: "Open-Meteo", status: "success" };
+  } catch (error) {
+    card.innerHTML = `<strong>Open-Meteo</strong><div>Status: unavailable</div><small>${String(error.message || error)}</small>`;
+    return { source: "Open-Meteo", status: "error" };
+  }
+}
+
 async function loadWeather() {
   const requestLocation = selectedLocationForRequest();
 
