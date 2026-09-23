@@ -716,10 +716,17 @@ async function loadOpenMeteo(latitude, longitude, loadSequence) {
   if (!card) {
     card = document.createElement("section");
     card.id = "openMeteoCard";
-    card.style.cssText = "margin:16px 0;padding:16px;border:1px solid #ccc;border-radius:12px;background:#fff;";
+    card.style.cssText = "margin:16px 0;padding:24px;border:1px solid #e1e5ea;border-radius:20px;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.06);";
+    const fusionSection = Array.from(host.querySelectorAll("section")).find(el =>
+    /Multi-Source Environmental Data Fusion/i.test(el.textContent || "")
+  );
+  if (fusionSection && fusionSection !== card) {
+    host.insertBefore(card, fusionSection);
+  } else {
     host.appendChild(card);
   }
-  card.innerHTML = "<strong>Open-Meteo</strong><div>Loading selected location…</div>";
+  }
+  card.innerHTML = `<h2 style="margin:0 0 12px;">4. Open-Meteo research-data display</h2><div>Loading selected location…</div>`;
   try {
     const raw = await window.fetchOpenMeteo(latitude, longitude);
     if (loadSequence !== weatherLoadSequence) return { source: "Open-Meteo", status: "stale" };
@@ -727,7 +734,7 @@ async function loadOpenMeteo(latitude, longitude, loadSequence) {
     registerThermalShieldFusionSource(normalized);
     const e = normalized.environment || {};
     card.innerHTML = `
-      <strong>Open-Meteo</strong>
+      <h2 style="margin:0 0 12px;">4. Open-Meteo research-data display</h2>
       <div>Located: ${Number(latitude).toFixed(5)}, ${Number(longitude).toFixed(5)}</div>
       <div>Timestamp: ${normalized.time?.timestamp || "Not supplied"}</div>
       <hr>
