@@ -72,7 +72,8 @@ function sourceValue(record, qualityResult) {
     quality: record?.quality ?? null,
     quality_result: qualityResult ?? null,
     forecast: record?.forecast ?? null,
-    source_grid: record?.source_grid ?? record?.location?.source_grid ?? null
+    source_grid: record?.source_grid ?? record?.location?.source_grid ?? null,
+    fusion_layer: record?.fusion_layer ?? null,
   };
 }
 
@@ -273,5 +274,5 @@ function fuseRecords(records, alignmentResults = [], qualityResults = [], option
 const fuse = fuseRecords;
 
 if (typeof window !== "undefined") window.ThermalShieldFusion = { fuse, fuseRecords };
-if (typeof module !== "undefined" && module.exports) module.exports = { fuse, fuseRecords };
+if (typeof module !== "undefined" && module.exports) module.exports = { fuse, fuseRecords: fuse };
 })();

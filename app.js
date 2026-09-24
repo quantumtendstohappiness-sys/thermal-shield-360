@@ -47,7 +47,20 @@ function registerThermalShieldFusionSource(normalized) {
     throw new Error("Normalized source record is missing provenance.source_id.");
   }
 
-  thermalShieldFusionSources.set(sourceId, normalized);
+  const dataType = normalized?.provenance?.data_type;
+  const dataStatus = normalized?.provenance?.data_status;
+  const fusionLayer =
+    dataStatus === "current" ? "current" :
+    dataType === "forecast" ? "forecast" :
+    ["reanalysis", "analysis", "historical"].includes(dataType) ? "historical" :
+    "unclassified";
+
+  const fusionRecord = {
+    ...normalized,
+    fusion_layer: fusionLayer
+  };
+
+  thermalShieldFusionSources.set(sourceId, fusionRecord);
   updateThermalShieldFusion();
 }
 
@@ -96,6 +109,7 @@ function normalizedVariableRecord(normalized, variable) {
       source_grid: lineage.source_grid ?? normalized.location.source_grid
     },
     data_type: normalized.provenance.data_type,
+    fusion_layer: normalized.fusion_layer ?? null,
     quality_flag: normalized.quality.quality_flag,
     forecast: {
       initialization_time:
@@ -113,6 +127,7 @@ function normalizedVariableRecord(normalized, variable) {
       source_id: normalized.provenance.source_id,
       source_name: normalized.provenance.source_name,
       data_type: normalized.provenance.data_type,
+    fusion_layer: normalized.fusion_layer ?? null,
       retrieved_at: normalized.provenance.retrieved_at,
       data_status: normalized.provenance.data_status,
       variables: [lineage]
@@ -313,11 +328,44 @@ function updateThermalShieldFusion() {
     }
   }
 
-  thermalShieldFusionResult = window.ThermalShieldFusion.fuseRecords(
-    records,
-    alignments,
-    quality
-  );
+  const layerResults = [];
+  for (const layer of ["historical", "current", "forecast"]) {
+    const layerRecords = records.filter(
+      (record) => record.fusion_layer === layer
+    );
+    if (layerRecords.length === 0) continue;
+
+    const layerQuality = qualityGate.evaluateRecords(layerRecords);
+    const layerAlignments = [];
+
+    for (let i = 0; i < layerRecords.length; i += 1) {
+      for (let j = i + 1; j < layerRecords.length; j += 1) {
+        if (layerRecords[i].variable === layerRecords[j].variable) {
+          layerAlignments.push(
+            window.ThermalShieldAlignment.alignRecords(
+              layerRecords[i],
+              layerRecords[j]
+            )
+          );
+        }
+      }
+    }
+
+    const result = window.ThermalShieldFusion.fuseRecords(
+      layerRecords,
+      layerAlignments,
+      layerQuality
+    );
+
+    result.results.forEach((item) => {
+      item.fusion_layer = layer;
+    });
+    layerResults.push(...result.results);
+  }
+
+  thermalShieldFusionResult = {
+    results: layerResults
+  };
   window.thermalShieldFusionResult = thermalShieldFusionResult;
   renderThermalShieldFusion(thermalShieldFusionResult);
 }
@@ -375,7 +423,7 @@ function fusedHTSIInputs(result) {
 
   result.results.forEach(fusion => {
     const input = HTSI_FUSION_INPUTS[fusion?.canonical_variable];
-    if (input && eligibleFusionResult(fusion, input.unit)) {
+    if (input && fusion.fusion_layer === "current" && eligibleFusionResult(fusion, input.unit)) {
       inputs[input.key] = fusion.unified_value;
     }
   });

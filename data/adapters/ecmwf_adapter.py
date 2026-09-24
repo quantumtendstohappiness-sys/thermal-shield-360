@@ -26,8 +26,8 @@ PARAMETERS = ("2t", "2d", "10u", "10v", "ssrd", "strd", "skt")
 FORECAST_STEP = 3
 SUBSET_RADIUS_DEGREES = 1.0
 RAW_STATUS = "raw/not normalized"
-ECMWF_MAX_RETRIES = 2
-ECMWF_RETRY_AFTER = (1, 4, 2)
+ECMWF_MAX_RETRIES = 5
+ECMWF_RETRY_AFTER = (5, 15, 30, 60, 120)
 
 
 def _iso_utc(date_value: Any, time_value: Any) -> str | None:
