@@ -27,7 +27,7 @@ FORECAST_STEP = 3
 SUBSET_RADIUS_DEGREES = 1.0
 RAW_STATUS = "raw/not normalized"
 ECMWF_MAX_RETRIES = 5
-ECMWF_RETRY_AFTER = (5, 15, 30, 60, 120)
+ECMWF_RETRY_AFTER = (5, 120, 2)
 
 
 def _iso_utc(date_value: Any, time_value: Any) -> str | None:

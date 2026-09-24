@@ -222,7 +222,33 @@ function renderThermalShieldFusion(result) {
     result.results.length === 1 ? "" : "s"
   } available.`;
 
-  result.results.forEach(fusion => {
+  const fusionLayers = [
+    ["historical", "Historical Fusion"],
+    ["current", "Current Fusion"],
+    ["forecast", "Forecast Fusion"]
+  ];
+
+  fusionLayers.forEach(([layer, layerTitle]) => {
+    const layerBox = document.createElement("section");
+    layerBox.className = "fusion-layer-section";
+
+    const layerHeading = document.createElement("h4");
+    layerHeading.textContent = layerTitle;
+    layerHeading.className = "fusion-layer-heading";
+    layerBox.appendChild(layerHeading);
+
+    const layerResults = result.results.filter(
+      fusion => fusion.fusion_layer === layer
+    );
+
+    if (layerResults.length === 0) {
+      const empty = document.createElement("p");
+      empty.textContent = "No fusion results available for this layer.";
+      empty.className = "fusion-layer-empty";
+      layerBox.appendChild(empty);
+    }
+
+    layerResults.forEach(fusion => {
     const card = document.createElement("article");
     card.className = `fusion-result ${fusionStatusClass(fusion.status)}`;
 
@@ -281,7 +307,10 @@ function renderThermalShieldFusion(result) {
     }
 
     card.appendChild(fields);
-    resultsBox.appendChild(card);
+    layerBox.appendChild(card);
+  });
+
+  resultsBox.appendChild(layerBox);
   });
 }
 
