@@ -47,12 +47,29 @@ function registerThermalShieldFusionSource(normalized) {
     throw new Error("Normalized source record is missing provenance.source_id.");
   }
 
-  const dataType = normalized?.provenance?.data_type;
-  const dataStatus = normalized?.provenance?.data_status;
+  const dataType = String(normalized?.provenance?.data_type ?? "").toLowerCase();
+  const dataStatus = String(normalized?.provenance?.data_status ?? "").toLowerCase();
+  const sourceKey = sourceId.toLowerCase();
+
+  // ONE fusion engine, three logical layers.
+  // Never infer current state from a forecast valid time.
+  const isOpenMeteoCurrent =
+    sourceKey.includes("open_meteo") &&
+    (dataStatus === "current" || dataStatus === "now");
+
+  const isForecastSource =
+    dataType === "forecast" ||
+    dataStatus === "forecast" ||
+    sourceKey.includes("ecmwf") ||
+    sourceKey.includes("gfs") ||
+    sourceKey.includes("gefs");
+
   const fusionLayer =
-    dataStatus === "current" ? "current" :
-    dataType === "forecast" ? "forecast" :
-    ["reanalysis", "analysis", "historical"].includes(dataType) ? "historical" :
+    isOpenMeteoCurrent ? "current" :
+    isForecastSource ? "forecast" :
+    ["reanalysis", "analysis", "historical"].includes(dataType) ||
+    ["historical", "reanalysis", "analysis"].includes(dataStatus) ||
+    sourceKey.includes("nasa_power") ? "historical" :
     "unclassified";
 
   const fusionRecord = {
