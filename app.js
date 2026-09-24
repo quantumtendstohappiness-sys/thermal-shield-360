@@ -880,10 +880,11 @@ async function loadWeather() {
   updateThermalShieldFusion();
 
   const results = await Promise.all([
-    loadNASA(latitude, longitude, loadSequence),
-    loadECMWF(latitude, longitude, loadSequence),
-    loadGFS(latitude, longitude, loadSequence)
-  ]);
+      loadNASA(latitude, longitude, loadSequence),
+      loadECMWF(latitude, longitude, loadSequence),
+      loadGFS(latitude, longitude, loadSequence),
+      loadOpenMeteo(latitude, longitude, loadSequence)
+    ]);
 
   if (loadSequence !== weatherLoadSequence) return;
 
