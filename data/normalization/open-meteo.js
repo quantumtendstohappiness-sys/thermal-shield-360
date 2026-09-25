@@ -65,7 +65,7 @@ function normalizeOpenMeteoRecord(record) {
     provenance: {
       source_id: OPEN_METEO_SOURCE_ID,
       source_name: OPEN_METEO_SOURCE_NAME,
-      data_type: "forecast",
+      data_type: "observation",
       data_status: "current",
       variable: null,
       units: null,
