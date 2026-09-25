@@ -119,12 +119,14 @@ def _validate_longitude(value: str | None) -> float:
 def _fetch_with_timeout(
     latitude: float,
     longitude: float,
+    forecast_step: int,
 ) -> dict[str, Any]:
     executor = ThreadPoolExecutor(max_workers=1)
     future = executor.submit(
         fetch_ecmwf,
         latitude=latitude,
         longitude=longitude,
+        forecast_step=forecast_step,
     )
 
     try:
@@ -162,7 +164,8 @@ def _handle_request(handler: BaseHTTPRequestHandler) -> None:
         return
 
     try:
-        payload = _fetch_with_timeout(latitude, longitude)
+        forecast_step = int(_query_value(handler.path, "forecast_step") or "3")
+        payload = _fetch_with_timeout(latitude, longitude, forecast_step)
     except FutureTimeoutError:
         _error_response(
             handler,
