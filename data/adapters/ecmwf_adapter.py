@@ -370,6 +370,7 @@ def validate_document(payload: dict[str, Any]) -> None:
 def fetch_ecmwf(
     latitude: float,
     longitude: float,
+    forecast_step: int = FORECAST_STEP,
     output: str | os.PathLike[str] | None = None,
 ) -> dict[str, Any]:
     _validate_coordinates(latitude, longitude)
@@ -401,7 +402,7 @@ def fetch_ecmwf(
             type="fc",
             levtype="sfc",
             param=list(PARAMETERS),
-            step=FORECAST_STEP,
+            step=forecast_step,
             area=area,
             target=temporary_path,
         )
@@ -462,7 +463,7 @@ def fetch_ecmwf(
                 iter(initialization_times)
             ),
             "forecast_valid_time_utc": next(iter(valid_times)),
-            "forecast_step_requested": FORECAST_STEP,
+            "forecast_step_requested": forecast_step,
             "parameters": fields,
             "status": RAW_STATUS,
         },
@@ -512,12 +513,14 @@ def main() -> None:
     parser.add_argument("--latitude", type=float, required=True)
     parser.add_argument("--longitude", type=float, required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--forecast-step", type=int, default=FORECAST_STEP)
     arguments = parser.parse_args()
 
     fetch_ecmwf(
         latitude=arguments.latitude,
         longitude=arguments.longitude,
         output=arguments.output,
+        forecast_step=arguments.forecast_step,
     )
 
 
