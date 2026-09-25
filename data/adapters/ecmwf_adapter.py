@@ -380,7 +380,7 @@ def fetch_ecmwf(
     # available matching forecast. Initialization and valid times are read
     # from the returned GRIB metadata instead of being synthesized locally.
     client = Client(
-        source="aws",
+        source="azure",
         model=MODEL,
         resol=RESOLUTION,
         maximum_retries=ECMWF_MAX_RETRIES,
