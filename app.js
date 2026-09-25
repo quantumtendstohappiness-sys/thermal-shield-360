@@ -77,7 +77,7 @@ function registerThermalShieldFusionSource(normalized) {
     fusion_layer: fusionLayer
   };
 
-  thermalShieldFusionSources.set(sourceId, fusionRecord);
+  const fusionKey = fusionLayer === "forecast" ? sourceId + ":" + (normalized?.forecast?.valid_time || normalized?.time?.timestamp || Date.now()) : sourceId; thermalShieldFusionSources.set(fusionKey, fusionRecord);
   updateThermalShieldFusion();
 }
 
@@ -881,8 +881,8 @@ async function loadWeather() {
 
   const results = await Promise.all([
       loadNASA(latitude, longitude, loadSequence),
-      loadECMWF(latitude, longitude, loadSequence),
-      loadGFS(latitude, longitude, loadSequence),
+      Promise.all(forecastSteps.map(step => loadECMWF(latitude, longitude, loadSequence, step))),
+      Promise.all(forecastSteps.map(step => loadGFS(latitude, longitude, loadSequence, step))),
       loadOpenMeteo(latitude, longitude, loadSequence)
     ]);
 
@@ -1115,9 +1115,11 @@ function renderECMWF(data, requestedLocation) {
   $("ecmwfRawDetails").hidden = false;
 }
 
-async function loadGFS(latitude, longitude, loadSequence) {
+const forecastSteps = [6, 9, 12, 15, 18, 21, 24];
+
+async function loadGFS(latitude, longitude, loadSequence, forecastStep = 3) {
   try {
-    const response = await fetch(`https://thermal-shield-360.vercel.app/api/noaa-gfs?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}`);
+    const response = await fetch(`https://thermal-shield-360.vercel.app/api/noaa-gfs?latitude=${encodeURIComponent(latitude)}&longitude=${encodeURIComponent(longitude)}&forecast_step=${encodeURIComponent(forecastStep)}`);
     const data = await response.json();
     if (!response.ok || data?.status === "error") throw new Error(data?.error || "NOAA GFS request failed");
     if (loadSequence !== weatherLoadSequence) return { source: "NOAA GFS", status: "stale" };
@@ -1173,14 +1175,14 @@ async function loadGFS(latitude, longitude, loadSequence) {
   }
 }
 
-async function loadECMWF(latitude, longitude, loadSequence) {
+async function loadECMWF(latitude, longitude, loadSequence, forecastStep = 3) {
   const status = $("ecmwfStatus");
 
   try {
     const ecmwfUrl =
       "https://thermal-shield-360.vercel.app/api/ecmwf" +
       `?latitude=${encodeURIComponent(latitude)}` +
-      `&longitude=${encodeURIComponent(longitude)}`;
+      `&longitude=${encodeURIComponent(longitude)}` + `&forecast_step=${encodeURIComponent(forecastStep)}`;
     const response = await fetch(ecmwfUrl);
 
     if (!response.ok) {
