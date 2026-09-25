@@ -20,7 +20,7 @@ def _get(url):
         return r.read()
 
 
-def _find_cycle(now, lat, lon):
+def _find_cycle(now, lat, lon, requested_step):
     now = now.astimezone(timezone.utc)
 
     # NOAA GFS Sflux currently provides 06Z and 00Z.
@@ -33,7 +33,7 @@ def _find_cycle(now, lat, lon):
             cycle_text = f"{cycle:02d}"
 
             pgrb_query = {
-                "file": f"gfs.t{cycle_text}z.pgrb2.0p25.f003",
+                "file": f"gfs.t{cycle_text}z.pgrb2.0p25.f{requested_step:03d}",
                 "var_TMP": "on",
                 "lev_2_m_above_ground": "on",
                 "leftlon": lon - 0.5,
@@ -44,7 +44,7 @@ def _find_cycle(now, lat, lon):
             }
 
             sflux_query = {
-                "file": f"gfs.t{cycle_text}z.sfluxgrbf003.grib2",
+                "file": f"gfs.t{cycle_text}z.sfluxgrbf{requested_step:03d}.grib2",
                 "var_DSWRF": "on",
                 "lev_surface": "on",
                 "leftlon": lon - 0.5,
@@ -250,6 +250,9 @@ def _gfs_handler(request):
 
         lat = float(params.get("latitude"))
         lon = float(params.get("longitude"))
+        requested_step = int(params.get("forecast_step", 3))
+        if requested_step < 0 or requested_step > 384:
+            raise ValueError("Invalid forecast_step.")
 
         if not (-90 <= lat <= 90 and -180 <= lon <= 180):
             raise ValueError(
@@ -261,13 +264,14 @@ def _gfs_handler(request):
         date_text, cycle = _find_cycle(
             now,
             lat,
-            lon
+            lon,
+            requested_step
         )
 
         query = {
             "file": (
                 f"gfs.t{cycle:02d}z."
-                f"pgrb2.0p25.f003"
+                f"pgrb2.0p25.f{requested_step:03d}"
             ),
             "var_TMP": "on",
             "var_DPT": "on",
