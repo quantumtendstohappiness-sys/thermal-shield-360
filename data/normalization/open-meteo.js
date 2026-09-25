@@ -9,20 +9,20 @@ function lineage(canonicalVariable, sourceVariable, value, unit) {
   return {
     canonicalVariable,
     sourceVariable,
-    nativeValue: value,
-    nativeUnit: value === null ? null : unit,
-    normalizedValue: value,
-    normalizedUnit: value === null ? null : unit,
+    native_value: value,
+    native_unit: value === null ? null : unit,
+    normalized_value: value,
+    normalized_unit: value === null ? null : unit,
     status: value === null ? "missing" : "source",
     transformation: value === null
       ? null
       : `Open-Meteo ${sourceVariable} is preserved in its native unit.`,
-    inputVariables: [sourceVariable],
-    sourceTimestamp: null,
-    forecastInitializationTime: null,
-    forecastValidTime: null,
-    forecastStep: null,
-    stepRange: null
+    input_variables: [sourceVariable],
+    source_timestamp: null,
+    forecast_initialization_time: null,
+    forecast_valid_time: null,
+    forecast_step: null,
+    step_range: null
   };
 }
 
