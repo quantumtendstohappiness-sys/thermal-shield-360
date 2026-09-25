@@ -104,8 +104,10 @@ function statusForValue(record, variableEntry) {
 }
 
 function compareTemporal(recordA, recordB, config) {
-  const timestampA = recordA?.time?.timestamp ?? recordA?.timestamp;
-  const timestampB = recordB?.time?.timestamp ?? recordB?.timestamp;
+  const forecastA = recordA?.forecast?.valid_time;
+  const forecastB = recordB?.forecast?.valid_time;
+  const timestampA = recordA?.provenance?.data_type === "forecast" && forecastA ? forecastA : (recordA?.time?.timestamp ?? recordA?.timestamp);
+  const timestampB = recordB?.provenance?.data_type === "forecast" && forecastB ? forecastB : (recordB?.time?.timestamp ?? recordB?.timestamp);
   const parsedA = Date.parse(timestampA);
   const parsedB = Date.parse(timestampB);
 
