@@ -893,18 +893,19 @@ async function loadWeather() {
   const nasaStatus = nasaResult.status === "success"
     ? "NASA POWER succeeded"
     : "NASA POWER failed";
-  const ecmwfStatus = ecmwfResult.status === "success"
+  const ecmwfSuccess = Array.isArray(ecmwfResult) && ecmwfResult.length > 0 && ecmwfResult.every(item => item?.status === "success");
+  const ecmwfStatus = ecmwfSuccess
     ? "ECMWF Open Data succeeded"
     : "ECMWF Open Data failed";
   const settledState =
-    nasaResult.status === "success" && ecmwfResult.status === "success"
+    nasaResult.status === "success" && ecmwfSuccess
       ? "Loading complete"
       : "Loading complete with errors";
 
   $("status").textContent =
     `${settledState} for ${name} (${locationLabel}): ` +
     `${nasaStatus}; ${ecmwfStatus}.`;
-  if (nasaResult.status === "success" && ecmwfResult.status === "success") {
+  if (nasaResult.status === "success" && ecmwfSuccess) {
     calculate();
   }
 }
@@ -1115,7 +1116,7 @@ function renderECMWF(data, requestedLocation) {
   $("ecmwfRawDetails").hidden = false;
 }
 
-const forecastSteps = [6, 9, 12, 15, 18, 21, 24];
+const forecastSteps = [3, 6, 9, 12, 15, 18, 21, 24];
 
 async function loadGFS(latitude, longitude, loadSequence, forecastStep = 3) {
   try {
