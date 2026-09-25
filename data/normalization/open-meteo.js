@@ -7,8 +7,8 @@ function finite(value) {
 
 function lineage(canonicalVariable, sourceVariable, value, unit) {
   return {
-    canonicalVariable,
-    sourceVariable,
+    canonical_variable: canonicalVariable,
+    source_variable: sourceVariable,
     native_value: value,
     native_unit: value === null ? null : unit,
     normalized_value: value,
