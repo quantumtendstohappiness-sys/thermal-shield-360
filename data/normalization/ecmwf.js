@@ -393,6 +393,9 @@ function normalizeECMWFPayload(rawPayload) {
       ? null
       : Math.sqrt((uRaw * uRaw) + (vRaw * vRaw));
 
+  // Derive RH from air temperature and dew point using the Magnus relation.
+  const relativeHumidityPct = airTemperatureC === null || dewPointC === null ? null : Math.max(0, Math.min(100, 100 * Math.exp((17.625 * dewPointC) / (243.04 + dewPointC) - (17.625 * airTemperatureC) / (243.04 + airTemperatureC))));
+
   const surfaceTemperatureC =
     skinRaw === null
       ? null
@@ -470,9 +473,7 @@ function normalizeECMWFPayload(rawPayload) {
   /*
    * These fields are intentionally deferred rather than core-missing.
    */
-  const pendingFields = [
-    "environment.relative_humidity_pct"
-  ];
+  const pendingFields = [];
 
   if (solarRadiationWm2 === null) {
     pendingFields.push("environment.solar_radiation_wm2");
@@ -664,22 +665,23 @@ function normalizeECMWFPayload(rawPayload) {
     }),
 
     /*
-     * No ECMWF raw RH field is created. The normalized RH value
-     * remains null. "missing" means no normalized RH value exists;
-     * the source inputs are preserved and derivation is pending.
+     * No ECMWF raw RH field is created. RH is derived in the
+     * normalization layer from the preserved 2t and 2d fields.
      */
     variableLineage({
       canonicalVariable: "relative_humidity_pct",
       sourceVariable: "2t,2d",
       nativeValue: null,
       nativeUnit: null,
-      normalizedValue: null,
+      normalizedValue: relativeHumidityPct,
       normalizedUnit: "%",
-      status: "missing",
+      status: relativeHumidityPct === null ? "missing" : "derived",
       transformation:
-        "RH derivation intentionally pending. A documented " +
-        "saturation-vapour-pressure relationship must be approved " +
-        "before calculation. No ECMWF raw RH field is created.",
+        relativeHumidityPct === null
+          ? "RH unavailable because normalized 2t or 2d is missing."
+          : "RH derived from 2t air temperature and 2d dew point " +
+            "using the Magnus saturation-vapour-pressure relationship; " +
+            "no ECMWF raw RH field is created.",
       sourceTimestamp: validTime,
       forecastInitializationTime: initializationTime,
       forecastValidTime: validTime,
@@ -761,7 +763,7 @@ function normalizeECMWFPayload(rawPayload) {
 
     environment: {
       air_temperature_c: airTemperatureC,
-      relative_humidity_pct: null,
+      relative_humidity_pct: relativeHumidityPct,
       wind_speed_ms: windSpeedMs,
       wind_direction_deg: null,
       dew_point_c: dewPointC,

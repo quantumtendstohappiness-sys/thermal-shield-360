@@ -196,44 +196,7 @@ function testWindSpeedMagnitude() {
   );
 }
 
-function testRelativeHumidityRemainsPending() {
-  const normalized = normalizeSourcePayload();
-
-  assert.equal(
-    normalized.environment.relative_humidity_pct,
-    null
-  );
-
-  assert.equal(
-      normalized.quality.pending_fields.includes(
-        "environment.relative_humidity_pct"
-      ),
-      true
-    );
-
-  const lineage = findLineage(
-    normalized,
-    "relative_humidity_pct"
-  );
-
-  assert.equal(lineage.native_value, null);
-  assert.equal(lineage.native_unit, null);
-  assert.equal(lineage.normalized_value, null);
-  assert.equal(lineage.normalized_unit, "%");
-  assert.equal(lineage.status, "missing");
-  assert.deepEqual(
-    lineage.input_variables,
-    ["2t", "2d"]
-  );
-  assert.match(
-    lineage.transformation,
-    /RH derivation intentionally pending/
-  );
-  assert.match(
-    lineage.transformation,
-    /No ECMWF raw RH field is created/
-  );
-}
+function testRelativeHumidityIsDerived() {   const normalized = normalizeSourcePayload();        assert.ok(Number.isFinite(normalized.environment.relative_humidity_pct));       assert.equal(normalized.quality.pending_fields.includes("environment.relative_humidity_pct"), false);                const lineage = findLineage(normalized, "relative_humidity_pct");                    assert.equal(lineage.native_value, null);             assert.equal(lineage.native_unit, null);               assert.equal(lineage.normalized_value, normalized.environment.relative_humidity_pct);                 assert.equal(lineage.normalized_unit, "%");                   assert.equal(lineage.status, "derived");                     assert.deepEqual(lineage.input_variables, ["2t", "2d"]);                       assert.match(lineage.transformation, /Magnus/);                         assert.match(lineage.transformation, /no ECMWF raw RH field is created/);                         }
 
 function testSSRDNormalization() {
   const normalized = normalizeSourcePayload();
@@ -247,12 +210,12 @@ function testSSRDNormalization() {
   const expectedDurationSeconds = 3 * 60 * 60;
   const expectedRadiation = rawSSRD / expectedDurationSeconds;
 
-  // The fixture contains 2,006,528 J/m2 accumulated over stepRange 0-3.
+  // The fixture contains 2,742,272 J/m2 accumulated over stepRange 0-3.
   // Its initialization and valid times are three hours apart, so the
-  // accumulation-period average is 2,006,528 / 10,800 = 185.7896 W/m2.
+  // accumulation-period average is 2,742,272 / 10,800 = 253.91407407407407 W/m2.
   assert.ok(
     Math.abs(
-      normalized.environment.solar_radiation_wm2 - 185.7896
+      normalized.environment.solar_radiation_wm2 - 253.91407407407407
     ) < 0.01
   );
   assert.equal(
@@ -347,8 +310,8 @@ function testSSRDDurationUsesSourceStepInterval() {
   const field = payload.properties.parameters.ssrd;
 
   payload.properties.forecast_valid_time_utc =
-    "2026-09-20T12:00:00Z";
-  field.valid_time_utc = "2026-09-20T12:00:00Z";
+    "2026-09-26T12:00:00Z";
+  field.valid_time_utc = "2026-09-26T12:00:00Z";
   field.forecast_step = 6;
   field.accumulation_end_step = 6;
   field.accumulation_period_steps = 6;
@@ -504,11 +467,7 @@ function testQualityFlagForCoreAndPendingFields() {
     []
   );
 
-  assert.ok(
-    normalized.quality.pending_fields.includes(
-      "environment.relative_humidity_pct"
-    )
-  );
+  assert.equal(     normalized.quality.pending_fields.includes(           "environment.relative_humidity_pct"               ),                   false                     );
 
   assert.equal(
       normalized.quality.pending_fields.includes(
@@ -654,7 +613,7 @@ function testProvenancePreservation() {
 testKelvinToCelsius();
 testDewPointUses2dAsDewPoint();
 testWindSpeedMagnitude();
-testRelativeHumidityRemainsPending();
+testRelativeHumidityIsDerived();
 testSSRDNormalization();
 testSSRDMissingAndInvalidMetadataRemainPending();
 testSSRDDurationUsesSourceStepInterval();
