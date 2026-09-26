@@ -231,103 +231,78 @@ function renderThermalShieldFusion(result) {
   resultsBox.replaceChildren();
 
   if (!result || !Array.isArray(result.results) || result.results.length === 0) {
-    status.textContent = "No fusion result is available.";
-    return;
+    status.textContent = "No fusion result is available."; return;
   }
 
-  status.textContent = `${result.results.length} fusion result${
-    result.results.length === 1 ? "" : "s"
-  } available.`;
+  status.textContent = `${result.results.length} fusion result${result.results.length === 1 ? "" : "s"} available.`;
 
-  const fusionLayers = [
-    ["historical", "Historical Fusion"],
-    ["current", "Current Fusion"],
-    ["forecast", "Forecast Fusion"]
-  ];
+  const layers = [["historical","Historical Fusion"],["current","Current Fusion"],["forecast","Forecast Fusion"]];
 
-  fusionLayers.forEach(([layer, layerTitle]) => {
+  layers.forEach(([layer,title]) => {
     const layerBox = document.createElement("section");
     layerBox.className = "fusion-layer-section";
+    const h = document.createElement("h4");
+    h.textContent = title; h.className = "fusion-layer-heading";
+    layerBox.appendChild(h);
+    const records = result.results.filter(x => x.fusion_layer === layer);
 
-    const layerHeading = document.createElement("h4");
-    layerHeading.textContent = layerTitle;
-    layerHeading.className = "fusion-layer-heading";
-    layerBox.appendChild(layerHeading);
+    if (layer === "forecast") {
+      const groups = new Map();
+      records.forEach(x => {
+        const lead = x.forecast_lead_hours ?? x.forecast?.lead_hours ?? null;
+        const key = lead != null ? Number(lead) : (x.forecast_valid_time || "unknown");
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(x);
+      });
 
-    const layerResults = result.results.filter(
-      fusion => fusion.fusion_layer === layer
-    );
+      [...groups.entries()].sort((a,b) => Number(a[0]) - Number(b[0])).forEach(([lead,items]) => {
+        const box = document.createElement("section");
+        box.className = "forecast-window";
+        const wh = document.createElement("h3");
+        wh.textContent = Number.isFinite(Number(lead)) ? `+${lead}h` : "Forecast";
+        box.appendChild(wh);
 
-    if (layerResults.length === 0) {
-      const empty = document.createElement("p");
-      empty.textContent = "No fusion results available for this layer.";
-      empty.className = "fusion-layer-empty";
-      layerBox.appendChild(empty);
-    }
+        items.forEach(x => {
+          const card = document.createElement("article");
+          card.className = `fusion-result ${fusionStatusClass(x.status)}`;
+          const name = document.createElement("strong");
+          name.textContent = x.canonical_variable || "Unnamed variable";
+          card.appendChild(name);
+          const value = document.createElement("span");
+          value.textContent = ` ${x.unified_value ?? "Unavailable"} ${x.unit || ""}`.trim();
+          card.appendChild(value);
+          const sources = Array.isArray(x.contributing_sources) ? x.contributing_sources : [];
+          const source = document.createElement("small");
+          const names = sources.map(s => { const v=String(s).toUpperCase(); return v.includes("GFS") ? "GFS" : v.includes("ECMWF") ? "ECMWF" : s; });
+          source.textContent = names.length >= 2 ? `Fused: ${names.join(" + ")}` : names.length === 1 ? `Source: ${names[0]}` : "Source unavailable";
+          card.appendChild(source);
+          box.appendChild(card);
+        });
+        layerBox.appendChild(box);
+      });
 
-    layerResults.forEach(fusion => {
-    const card = document.createElement("article");
-    card.className = `fusion-result ${fusionStatusClass(fusion.status)}`;
-
-    const heading = document.createElement("h3");
-    heading.textContent = fusion.canonical_variable || "Unnamed variable";
-    card.appendChild(heading);
-
-    const statusBadge = document.createElement("span");
-    statusBadge.className = "fusion-status";
-    statusBadge.textContent = fusionStatusLabel(fusion.status);
-    card.appendChild(statusBadge);
-
-    const fields = document.createElement("div");
-    fields.className = "fusion-fields";
-    appendFusionField(fields, "Unified value", fusion.unified_value);
-    appendFusionField(fields, "Unit", fusion.unit);
-    appendFusionList(fields, "Contributing source IDs", fusion.contributing_sources);
-    appendFusionSourceValues(fields, fusion.source_values);
-    appendFusionAlignment(fields, fusion.alignment);
-
-    if (fusion.confidence && typeof fusion.confidence === "object") {
-      appendPresentFusionField(fields, "Confidence status", fusion.confidence.status);
-      if (fusion.confidence.score !== null && fusion.confidence.score !== undefined) {
-        appendFusionField(fields, "Confidence score", fusion.confidence.score);
+      if (!records.length) {
+        const empty=document.createElement("p"); empty.textContent="No forecast fusion results available."; layerBox.appendChild(empty);
       }
-      appendPresentFusionField(fields, "Confidence basis", fusion.confidence.basis);
-      appendPresentFusionField(fields, "Confidence reason", fusion.confidence.reason);
+      resultsBox.appendChild(layerBox);
+      return;
     }
 
-    if (fusion.disagreement && typeof fusion.disagreement === "object") {
-      appendPresentFusionField(fields, "Disagreement", fusion.disagreement.status);
-      appendPresentFusionField(fields, "Disagreement details", fusion.disagreement.details);
-      if (Array.isArray(fusion.disagreement.pairwise)) {
-        const pairwise = fusion.disagreement.pairwise
-          .map(pair => {
-            if (!pair || typeof pair !== "object") return null;
-            const sources = [pair.source_a, pair.source_b].filter(Boolean).join(" / ");
-            const difference = pair.difference === null || pair.difference === undefined
-              ? null
-              : `difference ${pair.difference}`;
-            return [sources, difference, pair.status].filter(Boolean).join(": ");
-          })
-          .filter(Boolean);
-        appendFusionList(fields, "Pairwise disagreement", pairwise);
-      }
-      appendFusionList(fields, "Disagreement reasons", fusion.disagreement.reasons);
+    if (!records.length) {
+      const empty=document.createElement("p"); empty.textContent="No fusion results available for this layer."; layerBox.appendChild(empty);
     }
-
-    appendPresentFusionField(fields, "Quality status", fusion.quality_assessment?.status);
-    appendFusionList(fields, "Missing fields", fusion.missing_fields);
-    if (Array.isArray(fusion.unavailable_sources) && fusion.unavailable_sources.length > 0) {
-      const unavailable = fusion.unavailable_sources
-        .map(source => [source?.source_id, source?.reason].filter(Boolean).join(": "))
-        .filter(Boolean);
-      appendFusionList(fields, "Unavailable sources", unavailable);
-    }
-
-    card.appendChild(fields);
-    layerBox.appendChild(card);
-  });
-
-  resultsBox.appendChild(layerBox);
+    records.forEach(x => {
+      const card=document.createElement("article");
+      card.className=`fusion-result ${fusionStatusClass(x.status)}`;
+      const h3=document.createElement("h3"); h3.textContent=x.canonical_variable || "Unnamed variable"; card.appendChild(h3);
+      const fields=document.createElement("div"); fields.className="fusion-fields";
+      appendFusionField(fields,"Unified value",x.unified_value);
+      appendFusionField(fields,"Unit",x.unit);
+      appendFusionList(fields,"Contributing source IDs",x.contributing_sources);
+      appendFusionSourceValues(fields,x.source_values);
+      card.appendChild(fields); layerBox.appendChild(card);
+    });
+    resultsBox.appendChild(layerBox);
   });
 }
 
