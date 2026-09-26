@@ -879,12 +879,11 @@ async function loadWeather() {
   thermalShieldFusionSources.clear();
   updateThermalShieldFusion();
 
-  const results = await Promise.all([
-      loadNASA(latitude, longitude, loadSequence),
-      Promise.all(forecastSteps.map(step => loadECMWF(latitude, longitude, loadSequence, step))),
-      Promise.all(forecastSteps.map(step => loadGFS(latitude, longitude, loadSequence, step))),
-      loadOpenMeteo(latitude, longitude, loadSequence)
-    ]);
+  const nasaPromise = loadNASA(latitude, longitude, loadSequence);
+  const openMeteoPromise = loadOpenMeteo(latitude, longitude, loadSequence);
+  const gfsResults = await Promise.all(forecastSteps.map(step => loadGFS(latitude, longitude, loadSequence, step)));
+  const ecmwfResults = await Promise.all(forecastSteps.map((step, index) => loadECMWF(latitude, longitude, loadSequence, step, gfsResults[index]?.valid_time || null)));
+  const results = [await nasaPromise, ecmwfResults, gfsResults, await openMeteoPromise];
 
   if (loadSequence !== weatherLoadSequence) return;
 
@@ -1169,21 +1168,21 @@ async function loadGFS(latitude, longitude, loadSequence, forecastStep = 3) {
     if (gfsRawDetails) gfsRawDetails.hidden = false;
     if (gfsRaw) gfsRaw.textContent = JSON.stringify(data, null, 2);
     registerThermalShieldFusionSource(normalized);
-    return { source: "NOAA GFS", status: "success" };
+    return { source: "NOAA GFS", status: "success", valid_time: time.forecast_valid_time };
   } catch (error) {
     if (loadSequence !== weatherLoadSequence) return { source: "NOAA GFS", status: "stale" };
     const status = $("gfsStatus"); if (status) status.textContent = `NOAA GFS failed: ${error.message}`; return { source: "NOAA GFS", status: "failed", error: error.message };
   }
 }
 
-async function loadECMWF(latitude, longitude, loadSequence, forecastStep = 3) {
+async function loadECMWF(latitude, longitude, loadSequence, forecastStep = 3, targetValidTime = null) {
   const status = $("ecmwfStatus");
 
   try {
     const ecmwfUrl =
       "https://thermal-shield-360.vercel.app/api/ecmwf" +
       `?latitude=${encodeURIComponent(latitude)}` +
-      `&longitude=${encodeURIComponent(longitude)}` + `&forecast_step=${encodeURIComponent(forecastStep)}`;
+      `&longitude=${encodeURIComponent(longitude)}` + `&forecast_step=${encodeURIComponent(forecastStep)}` + (targetValidTime ? `&target_valid_time=${encodeURIComponent(targetValidTime)}` : "");
     const response = await fetch(ecmwfUrl);
 
     if (!response.ok) {
