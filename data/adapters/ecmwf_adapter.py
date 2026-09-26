@@ -49,6 +49,18 @@ def _iso_utc(date_value: Any, time_value: Any) -> str | None:
     return timestamp.isoformat().replace("+00:00", "Z")
 
 
+def _ecmwf_cycle_and_step(target_valid_time: datetime) -> tuple[str, int]:
+    """Return an ECMWF UTC initialization cycle and step for a target time."""
+    target_valid_time = target_valid_time.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
+    from datetime import timedelta
+    for hours_back in range(0, 25, 3):
+        initialization = target_valid_time - timedelta(hours=hours_back)
+        if initialization.hour in {0, 6, 12, 18}:
+            step = int((target_valid_time - initialization).total_seconds() // 3600)
+            return initialization.strftime("%Y%m%d"), step
+    raise ValueError(f"No valid ECMWF cycle found for target valid time {target_valid_time.isoformat()}.")
+
+
 def _wrapped_longitude(longitude: float) -> float:
     """Return longitude in the GRIB-compatible [-180, 180] range."""
     return ((float(longitude) + 180.0) % 360.0) - 180.0
@@ -371,6 +383,7 @@ def fetch_ecmwf(
     latitude: float,
     longitude: float,
     forecast_step: int = FORECAST_STEP,
+    target_valid_time: datetime | str | None = None,
     output: str | os.PathLike[str] | None = None,
 ) -> dict[str, Any]:
     _validate_coordinates(latitude, longitude)
@@ -398,14 +411,34 @@ def fetch_ecmwf(
         ) as temporary_file:
             temporary_path = temporary_file.name
 
-        client.retrieve(
-            type="fc",
-            levtype="sfc",
-            param=list(PARAMETERS),
-            step=forecast_step,
-            area=area,
-            target=temporary_path,
-        )
+        if target_valid_time is not None:
+            if isinstance(target_valid_time, str):
+                target_valid_time = datetime.fromisoformat(
+                    target_valid_time.replace("Z", "+00:00")
+                )
+            target_valid_time = target_valid_time.astimezone(timezone.utc)
+            cycle_date, cycle_step = _ecmwf_cycle_and_step(target_valid_time)
+            cycle_time = int((target_valid_time - __import__("datetime").timedelta(hours=cycle_step)).hour)
+
+            client.retrieve(
+                type="fc",
+                levtype="sfc",
+                param=list(PARAMETERS),
+                date=cycle_date,
+                time=cycle_time,
+                step=cycle_step,
+                area=area,
+                target=temporary_path,
+            )
+        else:
+            client.retrieve(
+                type="fc",
+                levtype="sfc",
+                param=list(PARAMETERS),
+                step=forecast_step,
+                area=area,
+                target=temporary_path,
+            )
 
         fields = _read_grib(
             temporary_path,
