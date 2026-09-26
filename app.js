@@ -114,7 +114,7 @@ function normalizedVariableRecord(normalized, variable) {
     source_id: normalized.provenance.source_id,
     source_name: normalized.provenance.source_name,
     variable,
-    value: normalized.environment[variable],
+    value: normalized.environment[variable] ?? lineage.normalized_value ?? null,
     unit: lineage.normalized_unit,
     timestamp:
       lineage.source_timestamp ??
@@ -127,7 +127,7 @@ function normalizedVariableRecord(normalized, variable) {
     },
     data_type: normalized.provenance.data_type,
     fusion_layer: normalized.fusion_layer ?? null,
-    quality_flag: normalized.quality.quality_flag,
+    quality_flag: lineage.status === "missing" ? "missing" : lineage.status === "poor" ? "poor" : "acceptable",
     forecast: {
       initialization_time:
         lineage.forecast_initialization_time ??
