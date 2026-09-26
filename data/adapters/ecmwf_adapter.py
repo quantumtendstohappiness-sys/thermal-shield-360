@@ -53,7 +53,7 @@ def _ecmwf_cycle_and_step(target_valid_time: datetime) -> tuple[str, int]:
     """Return an ECMWF UTC initialization cycle and step for a target time."""
     target_valid_time = target_valid_time.astimezone(timezone.utc).replace(minute=0, second=0, microsecond=0)
     from datetime import timedelta
-    for hours_back in range(0, 25, 3):
+    for hours_back in range(9, 49, 3):
         initialization = target_valid_time - timedelta(hours=hours_back)
         if initialization.hour in {0, 6, 12, 18}:
             step = int((target_valid_time - initialization).total_seconds() // 3600)
@@ -427,7 +427,6 @@ def fetch_ecmwf(
                 date=cycle_date,
                 time=cycle_time,
                 step=cycle_step,
-                area=area,
                 target=temporary_path,
             )
         else:
@@ -496,7 +495,7 @@ def fetch_ecmwf(
                 iter(initialization_times)
             ),
             "forecast_valid_time_utc": next(iter(valid_times)),
-            "forecast_step_requested": forecast_step,
+            "forecast_step_requested": cycle_step if target_valid_time is not None else forecast_step,
             "parameters": fields,
             "status": RAW_STATUS,
         },

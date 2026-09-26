@@ -120,6 +120,7 @@ def _fetch_with_timeout(
     latitude: float,
     longitude: float,
     forecast_step: int | None = None,
+    target_valid_time: str | None = None,
 ) -> dict[str, Any]:
     executor = ThreadPoolExecutor(max_workers=1)
     if forecast_step is None:
@@ -134,6 +135,7 @@ def _fetch_with_timeout(
             latitude=latitude,
             longitude=longitude,
             forecast_step=forecast_step,
+            target_valid_time=target_valid_time,
         )
 
     try:
@@ -173,7 +175,8 @@ def _handle_request(handler: BaseHTTPRequestHandler) -> None:
     try:
         forecast_step_value = _query_value(handler.path, "forecast_step")
         forecast_step = int(forecast_step_value) if forecast_step_value else None
-        payload = _fetch_with_timeout(latitude, longitude, forecast_step)
+        target_valid_time = _query_value(handler.path, "target_valid_time")
+        payload = _fetch_with_timeout(latitude, longitude, forecast_step, target_valid_time)
     except FutureTimeoutError:
         _error_response(
             handler,
