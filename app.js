@@ -985,6 +985,21 @@ function renderNASAResearch(data, normalized, requestedLocation) {
     parametersBox.appendChild(card);
   });
 
+  const nasaCard = summary.closest(".source-card");
+  const nasaMetrics = nasaCard ? nasaCard.querySelectorAll(".source-metric strong") : [];
+  [
+    environment.air_temperature_c,
+    environment.relative_humidity_pct,
+    environment.wind_speed_ms,
+    environment.solar_radiation_wm2
+  ].forEach((value, i) => {
+    if (nasaMetrics[i]) {
+      nasaMetrics[i].textContent =
+        value === null || value === undefined || value === ""
+          ? "Not supplied"
+          : String(value);
+    }
+  });
   $("nasaResearchRaw").textContent = JSON.stringify(data, null, 2);
   summary.hidden = false;
   $("nasaResearchRawDetails").hidden = false;
