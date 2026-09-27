@@ -1107,6 +1107,7 @@ async function loadGFS(latitude, longitude, loadSequence, forecastStep = 3) {
     if (gfsSummary) {
       gfsSummary.hidden = false;
       const view = normalized.properties || normalized;
+    const time = view.time || {};
             const env = view.environment || {};
             const location = view.location || {};
             const grid = location.source_grid || {};
@@ -1114,7 +1115,6 @@ async function loadGFS(latitude, longitude, loadSequence, forecastStep = 3) {
             const gfsVariables = Array.isArray(view.provenance?.variables) ? view.provenance.variables : [];
             const windULineage = gfsVariables.find(v => v?.canonical_variable === "wind_u");
             const windVLineage = gfsVariables.find(v => v?.canonical_variable === "wind_v");
-            const time = view.time || {};
             const prov = view.provenance || {};
             const quality = view.quality || {};
             const show = v => v === null || v === undefined || v === "" ? "Not supplied" : String(v);
