@@ -1101,13 +1101,13 @@ async function loadGFS(latitude, longitude, loadSequence, forecastStep = 3) {
     const normalized = window.normalizeGFSPayload({ type: "Feature", geometry: { type: "Point", coordinates: [Number(longitude), Number(latitude)] }, properties: data });
     const gfsStatus = $("gfsStatus");
     const gfsSummary = $("gfsSummary");
+    const time = normalized.properties?.time || normalized.time || {};
     const gfsRawDetails = $("gfsRawDetails");
     const gfsRaw = $("gfsRaw");
     if (gfsStatus) gfsStatus.textContent = `NOAA GFS loaded for ${latitude}, ${longitude}.`;
     if (gfsSummary) {
       gfsSummary.hidden = false;
       const view = normalized.properties || normalized;
-    const time = view.time || {};
             const env = view.environment || {};
             const location = view.location || {};
             const grid = location.source_grid || {};
