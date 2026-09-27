@@ -13,10 +13,10 @@ from data.adapters.ecmwf_adapter import fetch_ecmwf, validate_document
 
 ALLOWED_ORIGINS = {
     "https://quantumtendstohappiness-sys.github.io",
+    "https://thermal-shield-360.vercel.app",
 }
 REQUEST_TIMEOUT_SECONDS = 60
 RAW_STATUS = "raw/not normalized"
-
 
 def _origin(headers: Any) -> str | None:
     origin = headers.get("Origin")
