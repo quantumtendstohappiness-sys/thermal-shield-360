@@ -100,6 +100,8 @@ function normalizedVariableNames(normalized) {
 }
 
 function normalizedVariableRecord(normalized, variable) {
+  unit=({air_temperature_c:"degC",relative_humidity_pct:"%",wind_speed_ms:"m/s",solar_radiation_wm2:"W/m2"})[variable]||unit;
+  unit=({air_temperature_c:"degC",relative_humidity_pct:"%",wind_speed_ms:"m/s",solar_radiation_wm2:"W/m2"})[variable]||unit;
   const lineage = normalized.provenance.variables.find(
     entry => entry.canonical_variable === variable
   );
