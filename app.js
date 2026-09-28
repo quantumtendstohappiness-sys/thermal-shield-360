@@ -244,7 +244,7 @@ function renderThermalShieldFusion(result) {
     const h = document.createElement("h4");
     h.textContent = title; h.className = "fusion-layer-heading";
     layerBox.appendChild(h);
-    const records = result.results.filter(x => x.fusion_layer === layer);
+    const records = result.results.filter(x => x.fusion_layer === layer && ["air_temperature_c","relative_humidity_pct","wind_speed_ms","solar_radiation_wm2"].includes(x.canonical_variable));
 
     if (layer === "forecast") {
       const groups = new Map();
@@ -318,7 +318,7 @@ function updateThermalShieldFusion() {
   }
 
   const variables = [...new Set(
-    sources.flatMap(normalizedVariableNames)
+    sources.flatMap(normalized => normalizedVariableNames(normalized).filter(variable => ["air_temperature_c", "relative_humidity_pct", "wind_speed_ms", "solar_radiation_wm2"].includes(variable)))
   )];
   const records = variables.flatMap(variable =>
     sources
