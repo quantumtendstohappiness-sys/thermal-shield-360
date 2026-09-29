@@ -881,7 +881,7 @@ async function loadWeather() {
   $("status").textContent =
     `${settledState} for ${name} (${locationLabel}): ` +
     `${nasaStatus}; ${ecmwfStatus}.`;
-  if (nasaResult.status === "success" && ecmwfSuccess) {
+  if (nasaResult.status === "success") {
     calculate();
   }
 }
