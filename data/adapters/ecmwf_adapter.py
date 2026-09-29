@@ -26,7 +26,7 @@ PARAMETERS = ("2t", "2d", "10u", "10v", "ssrd", "strd", "skt")
 FORECAST_STEP = 3
 SUBSET_RADIUS_DEGREES = 1.0
 RAW_STATUS = "raw/not normalized"
-ECMWF_MAX_RETRIES = 1
+ECMWF_MAX_RETRIES = 5
 ECMWF_RETRY_AFTER = (5, 120, 2)
 
 
@@ -394,7 +394,7 @@ def fetch_ecmwf(
     # available matching forecast. Initialization and valid times are read
     # from the returned GRIB metadata instead of being synthesized locally.
     client = Client(
-        source="ecmwf",
+        source="aws",
         model=MODEL,
         resol=RESOLUTION,
         maximum_retries=ECMWF_MAX_RETRIES,
