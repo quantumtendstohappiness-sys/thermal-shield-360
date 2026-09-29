@@ -858,8 +858,8 @@ async function loadWeather() {
 
   const nasaPromise = loadNASA(latitude, longitude, loadSequence);
   const openMeteoPromise = loadOpenMeteo(latitude, longitude, loadSequence);
-  const gfsResults = await Promise.all(forecastSteps.map(step => loadGFS(latitude, longitude, loadSequence, step)));
-  const ecmwfResults = await Promise.all(forecastSteps.map((step, index) => loadECMWF(latitude, longitude, loadSequence, step, gfsResults[index]?.valid_time || null)));
+  const gfsResults = []; for (const step of forecastSteps) gfsResults.push(await loadGFS(latitude, longitude, loadSequence, step));
+  const ecmwfResults = []; for (let index = 0; index < forecastSteps.length; index += 1) ecmwfResults.push(await loadECMWF(latitude, longitude, loadSequence, forecastSteps[index], gfsResults[index]?.valid_time || null));
   const results = [await nasaPromise, ecmwfResults, gfsResults, await openMeteoPromise];
 
   if (loadSequence !== weatherLoadSequence) return;
