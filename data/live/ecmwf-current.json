@@ -150,7 +150,7 @@
     ],
     "provider": "ECMWF Open Data",
     "resolution": "0p25",
-    "retrieved_at": "2026-10-09T13:00:43.313683Z",
+    "retrieved_at": "2026-10-09T18:57:04.229091Z",
     "source_id": "ecmwf_opendata",
     "subset_area": [
       1.0,
