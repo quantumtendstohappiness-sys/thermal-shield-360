@@ -12,14 +12,14 @@
     "source": "NASA POWER",
     "source_id": "nasa_power",
     "data_type": "reanalysis",
-    "observation_timestamp_utc": "2026102923",
-    "retrieved_at": "2026-11-01T01:12:16.594Z",
+    "observation_timestamp_utc": "2026103023",
+    "retrieved_at": "2026-11-01T07:35:09.737Z",
     "environment": {
-      "air_temperature_c": 20.28,
-      "relative_humidity_pct": 95.85,
-      "wind_speed_ms": 1.13,
-      "nasa_wet_bulb_related_c": 19.93,
-      "dew_point_c": 19.58,
+      "air_temperature_c": 20.36,
+      "relative_humidity_pct": 97.13,
+      "wind_speed_ms": 1.39,
+      "nasa_wet_bulb_related_c": 20.12,
+      "dew_point_c": 19.88,
       "solar_radiation_wm2": null
     },
     "provenance": {
