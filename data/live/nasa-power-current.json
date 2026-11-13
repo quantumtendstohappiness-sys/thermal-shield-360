@@ -13,7 +13,7 @@
     "source_id": "nasa_power",
     "data_type": "reanalysis",
     "observation_timestamp_utc": "2026111123",
-    "retrieved_at": "2026-11-13T08:00:20.816Z",
+    "retrieved_at": "2026-11-13T16:27:10.918Z",
     "environment": {
       "air_temperature_c": 16.05,
       "relative_humidity_pct": 79.53,
